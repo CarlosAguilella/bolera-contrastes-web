@@ -44,7 +44,7 @@ function StatusPill() {
 }
 
 // ===== Logo mark =====
-function Logo({ size = 44 }) {
+function Logo({ size = 50 }) {
   return (
     <span className="bc-logo">
       <span
@@ -54,7 +54,7 @@ function Logo({ size = 44 }) {
         C
       </span>
       <span className="bc-logo__type">
-        <span style={{ fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', display: 'block', color: 'var(--ink-soft)' }}>bolera</span>
+        <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', display: 'block', color: 'var(--ink-soft)' }}>bolera</span>
         <strong>Contrastes</strong>
       </span>
     </span>
