@@ -128,6 +128,7 @@ function App() {
       {page === 'carta' && <Carta onNav={handleNav} tweaks={t} />}
       {page === 'reservar' && <Reservar onNav={handleNav} />}
       {page === 'eventos' && <Eventos onNav={handleNav} />}
+      {page === 'puntos' && <Puntos onNav={handleNav} />}
       {page === 'contacto' && <Home onNav={handleNav} tweaks={t} />}
       <Footer onNav={handleNav} />
       <MobileCTA onNav={handleNav} />
@@ -191,6 +192,7 @@ function App() {
         <TweakButton label="Carta" onClick={() => handleNav('carta')} />
         <TweakButton label="Reservar" onClick={() => handleNav('reservar')} />
         <TweakButton label="Eventos" onClick={() => handleNav('eventos')} />
+        <TweakButton label="Puntos" onClick={() => handleNav('puntos')} />
       </TweaksPanel>
     </React.Fragment>
   );

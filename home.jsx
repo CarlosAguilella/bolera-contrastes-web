@@ -95,6 +95,26 @@ function Home({ onNav, tweaks }) {
 
       <Marquee />
 
+      {/* ===== PUNTOS CONTRASTES ===== */}
+      <section className="section bc-container">
+        <div className="points-home">
+          <div>
+            <span className="eyebrow">Nuevo piloto</span>
+            <h2 className="h-section balance" style={{ marginTop: 8 }}>
+              Recarga saldo y paga con Puntos Contrastes.
+            </h2>
+            <p className="muted pretty" style={{ maxWidth: '52ch', marginTop: 12 }}>
+              Crea tu cuenta, carga saldo con ofertas y paga en barra con QR o teléfono. Pensado para clientes habituales y promociones del local.
+            </p>
+          </div>
+          <div className="points-home__offer">
+            <span>Oferta de recarga</span>
+            <strong>30 € → 32 puntos</strong>
+            <button className="btn btn-primary" onClick={() => onNav('puntos')}>Ver Puntos</button>
+          </div>
+        </div>
+      </section>
+
       {/* ===== 5 CONCEPTOS ===== */}
       <section className="section bc-container">
         <div className="section__head">

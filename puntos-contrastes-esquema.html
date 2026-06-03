@@ -1,0 +1,1373 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Puntos Contrastes - Esquema visual</title>
+  <style>
+    :root {
+      --paper: #f6efe6;
+      --ink: #1b1814;
+      --muted: #665d54;
+      --line: rgba(27, 24, 20, .16);
+      --accent: #c8552b;
+      --green: #2f7d4a;
+      --gold: #b17a00;
+      --white: #fffaf4;
+      --shadow: 0 18px 60px rgba(27, 24, 20, .12);
+      --serif: "Georgia", "Times New Roman", serif;
+      --sans: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 12% 8%, rgba(200, 85, 43, .14), transparent 30%),
+        linear-gradient(135deg, #f9f2e9 0%, #efe2d1 100%);
+      font-family: var(--sans);
+      line-height: 1.35;
+    }
+
+    .sheet {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 24px auto;
+      padding: 36px;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: rgba(255, 250, 244, .92);
+      box-shadow: var(--shadow);
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      padding-bottom: 26px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 260px;
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      color: var(--paper);
+      background: var(--ink);
+      font: italic 30px var(--serif);
+    }
+
+    .brand-text small {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    .brand-text strong {
+      display: block;
+      margin-top: -2px;
+      font: italic 34px var(--serif);
+      letter-spacing: -.01em;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 680px;
+      font: 56px/.95 var(--serif);
+      letter-spacing: -.015em;
+      text-align: right;
+    }
+
+    .subtitle {
+      margin: 22px 0 0;
+      max-width: 760px;
+      color: var(--muted);
+      font-size: 19px;
+    }
+
+    .deck {
+      display: grid;
+      gap: 18px;
+      margin-top: 32px;
+      padding-top: 28px;
+      border-top: 1px solid var(--line);
+    }
+
+    .deck-title {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .deck-title h2 {
+      margin: 0;
+      font: 46px/1 var(--serif);
+    }
+
+    .deck-title span {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .slides {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .slide {
+      position: relative;
+      min-height: 230px;
+      padding: 24px;
+      border: 1px solid rgba(27, 24, 20, .16);
+      border-radius: 22px;
+      background: var(--white);
+      overflow: hidden;
+    }
+
+    .slide.feature {
+      grid-column: span 2;
+      min-height: 280px;
+      color: #fffaf4;
+      background: linear-gradient(135deg, var(--ink), #47382e);
+      border-color: rgba(255, 250, 244, .18);
+    }
+
+    .slide-number {
+      display: inline-grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      color: #fff;
+      background: var(--accent);
+      font-weight: 900;
+    }
+
+    .slide.feature .slide-number {
+      color: var(--ink);
+      background: #fffaf4;
+    }
+
+    .slide h3 {
+      margin: 18px 0 0;
+      max-width: 760px;
+      font: 36px/1.02 var(--serif);
+    }
+
+    .slide.feature h3 {
+      max-width: 850px;
+      font-size: 58px;
+    }
+
+    .slide p {
+      margin: 12px 0 0;
+      max-width: 700px;
+      color: var(--muted);
+      font-size: 17px;
+      font-weight: 650;
+    }
+
+    .slide.feature p {
+      color: rgba(255, 250, 244, .78);
+      font-size: 21px;
+    }
+
+    .slide-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .slide-list div {
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: var(--paper);
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .slide.feature .slide-list {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .slide.feature .slide-list div {
+      color: #fffaf4;
+      background: rgba(255, 250, 244, .12);
+      border: 1px solid rgba(255, 250, 244, .12);
+    }
+
+    .money-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .money-strip div {
+      padding: 16px;
+      border-radius: 18px;
+      background: rgba(47, 125, 74, .12);
+      color: #255d39;
+      font-weight: 900;
+    }
+
+    .money-strip b {
+      display: block;
+      color: var(--ink);
+      font-size: 26px;
+    }
+
+    .source-links {
+      display: grid;
+      gap: 8px;
+      margin-top: 16px;
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .source-links a {
+      color: var(--accent);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    .section-label {
+      margin-top: 34px;
+      padding-top: 26px;
+      border-top: 1px solid var(--line);
+    }
+
+    .section-label h2 {
+      margin: 0;
+      font: 42px/1 var(--serif);
+    }
+
+    .section-label p {
+      margin: 10px 0 0;
+      max-width: 740px;
+      color: var(--muted);
+      font-size: 17px;
+      font-weight: 650;
+    }
+
+    .equation {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 28px;
+    }
+
+    .metric {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--white);
+    }
+
+    .metric b {
+      display: block;
+      font-size: 34px;
+      letter-spacing: -.02em;
+    }
+
+    .metric span {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .diagram {
+      display: grid;
+      grid-template-columns: 1fr 90px 1fr 90px 1fr;
+      align-items: stretch;
+      gap: 16px;
+      margin-top: 34px;
+    }
+
+    .node {
+      position: relative;
+      min-height: 240px;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--white);
+    }
+
+    .node::before {
+      content: attr(data-number);
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      color: var(--white);
+      background: var(--accent);
+      font-weight: 800;
+    }
+
+    .node h2 {
+      margin: 0 0 14px;
+      padding-right: 42px;
+      font: 32px/1 var(--serif);
+    }
+
+    .node ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .node li {
+      display: flex;
+      gap: 9px;
+      margin-top: 10px;
+    }
+
+    .node li::before {
+      content: "";
+      flex: 0 0 auto;
+      width: 8px;
+      height: 8px;
+      margin-top: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .arrow {
+      display: grid;
+      place-items: center;
+      color: var(--accent);
+      font-size: 54px;
+      font-weight: 900;
+    }
+
+    .sections {
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .panel {
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: rgba(255, 250, 244, .72);
+    }
+
+    .panel h2 {
+      margin: 0 0 16px;
+      font: 34px/1 var(--serif);
+    }
+
+    .grid-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .pill {
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--white);
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .rules {
+      display: grid;
+      gap: 10px;
+    }
+
+    .rule {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 14px;
+      border-radius: 16px;
+      background: var(--white);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .rule b {
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      color: #fff;
+      background: var(--green);
+      font-size: 15px;
+    }
+
+    .bottom {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .example {
+      padding: 18px;
+      border-radius: 18px;
+      color: var(--white);
+      background: var(--ink);
+    }
+
+    .example strong {
+      display: block;
+      font-size: 24px;
+    }
+
+    .example span {
+      display: block;
+      margin-top: 6px;
+      color: rgba(255, 250, 244, .74);
+      font-size: 14px;
+    }
+
+    .note {
+      margin-top: 20px;
+      padding: 18px 22px;
+      border-left: 5px solid var(--gold);
+      border-radius: 16px;
+      background: rgba(177, 122, 0, .12);
+      color: #4c3710;
+      font-weight: 700;
+    }
+
+    .usage {
+      margin-top: 30px;
+      padding-top: 28px;
+      border-top: 1px solid var(--line);
+    }
+
+    .usage h2 {
+      margin: 0;
+      font: 42px/1 var(--serif);
+    }
+
+    .usage-lead {
+      margin: 10px 0 20px;
+      max-width: 720px;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .mockups {
+      display: grid;
+      grid-template-columns: 1.1fr .9fr .9fr;
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .screen {
+      overflow: hidden;
+      border: 1px solid rgba(27, 24, 20, .2);
+      border-radius: 22px;
+      background: #fff;
+      box-shadow: 0 12px 32px rgba(27, 24, 20, .08);
+    }
+
+    .screen-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      color: #fff;
+      background: var(--ink);
+      font-weight: 800;
+    }
+
+    .screen-top span {
+      color: rgba(255, 250, 244, .72);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .screen-body {
+      padding: 18px;
+    }
+
+    .ticket-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 11px 0;
+      border-bottom: 1px solid rgba(27, 24, 20, .1);
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .ticket-row strong { color: var(--ink); }
+
+    .total-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      margin-top: 16px;
+      padding: 16px;
+      border-radius: 16px;
+      background: var(--paper);
+      font-weight: 800;
+    }
+
+    .total-row b {
+      font-size: 28px;
+      color: var(--accent);
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .action {
+      padding: 13px 12px;
+      border-radius: 999px;
+      text-align: center;
+      color: #fff;
+      background: var(--accent);
+      font-weight: 900;
+      font-size: 14px;
+    }
+
+    .action.secondary {
+      color: var(--ink);
+      background: var(--paper);
+      border: 1px solid var(--line);
+    }
+
+    .recharge-box {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      padding: 14px;
+      border-radius: 16px;
+      background: rgba(47, 125, 74, .1);
+      border: 1px solid rgba(47, 125, 74, .22);
+      font-weight: 900;
+      text-align: center;
+    }
+
+    .recharge-box span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .recharge-box b {
+      display: block;
+      color: var(--green);
+      font-size: 24px;
+    }
+
+    .recharge-box em {
+      color: var(--green);
+      font-style: normal;
+      font-size: 26px;
+    }
+
+    .customer-card {
+      display: grid;
+      gap: 14px;
+      text-align: center;
+    }
+
+    .avatar {
+      display: grid;
+      place-items: center;
+      width: 64px;
+      height: 64px;
+      margin: 0 auto;
+      border-radius: 50%;
+      color: #fff;
+      background: var(--accent);
+      font-size: 28px;
+      font-weight: 900;
+    }
+
+    .points-balance {
+      padding: 18px;
+      border-radius: 18px;
+      color: #fff;
+      background: linear-gradient(135deg, var(--ink), #3b3128);
+    }
+
+    .points-balance b {
+      display: block;
+      font-size: 38px;
+      line-height: 1;
+    }
+
+    .points-balance span {
+      color: rgba(255, 250, 244, .72);
+      font-weight: 700;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .qr {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 5px;
+      width: 118px;
+      height: 118px;
+      margin: 0 auto;
+      padding: 10px;
+      border-radius: 14px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+    }
+
+    .qr i {
+      display: block;
+      border-radius: 2px;
+      background: var(--ink);
+    }
+
+    .qr i:nth-child(2),
+    .qr i:nth-child(6),
+    .qr i:nth-child(9),
+    .qr i:nth-child(12),
+    .qr i:nth-child(17),
+    .qr i:nth-child(21),
+    .qr i:nth-child(24) {
+      background: transparent;
+    }
+
+    .redeem-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--paper);
+      font-weight: 800;
+    }
+
+    .redeem-item span {
+      color: var(--accent);
+    }
+
+    .mini-flow {
+      display: grid;
+      gap: 9px;
+      margin-top: 14px;
+    }
+
+    .mini-step {
+      padding: 12px;
+      border-radius: 14px;
+      background: rgba(47, 125, 74, .12);
+      color: #255d39;
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .web-preview {
+      margin-top: 30px;
+      padding-top: 28px;
+      border-top: 1px solid var(--line);
+    }
+
+    .web-preview h2 {
+      margin: 0;
+      font: 42px/1 var(--serif);
+    }
+
+    .web-frame {
+      overflow: hidden;
+      margin-top: 20px;
+      border: 1px solid rgba(27, 24, 20, .18);
+      border-radius: 24px;
+      background: #f8f1e8;
+      box-shadow: 0 16px 48px rgba(27, 24, 20, .12);
+    }
+
+    .web-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(27, 24, 20, .12);
+      background: rgba(255, 250, 244, .9);
+    }
+
+    .web-nav strong {
+      font: italic 28px var(--serif);
+    }
+
+    .web-nav span {
+      color: var(--muted);
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .web-main {
+      display: grid;
+      grid-template-columns: .95fr 1.35fr;
+      gap: 18px;
+      padding: 22px;
+    }
+
+    .login-panel,
+    .wallet-panel,
+    .offers-panel,
+    .catalog-panel {
+      border: 1px solid rgba(27, 24, 20, .14);
+      border-radius: 18px;
+      background: #fffaf4;
+    }
+
+    .login-panel,
+    .wallet-panel {
+      padding: 18px;
+    }
+
+    .login-panel h3,
+    .wallet-panel h3,
+    .offers-panel h3,
+    .catalog-panel h3 {
+      margin: 0 0 14px;
+      font: 28px/1 var(--serif);
+    }
+
+    .field {
+      margin-top: 10px;
+      padding: 12px 14px;
+      border: 1px solid rgba(27, 24, 20, .14);
+      border-radius: 12px;
+      color: var(--muted);
+      background: #fff;
+      font-weight: 700;
+    }
+
+    .web-button {
+      margin-top: 12px;
+      padding: 13px 14px;
+      border-radius: 999px;
+      color: #fff;
+      background: var(--accent);
+      text-align: center;
+      font-weight: 900;
+    }
+
+    .wallet-balance {
+      padding: 20px;
+      border-radius: 18px;
+      color: #fff;
+      background: linear-gradient(135deg, #1b1814, #46382f);
+    }
+
+    .wallet-balance span {
+      display: block;
+      color: rgba(255, 250, 244, .72);
+      font-size: 13px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .wallet-balance b {
+      display: block;
+      margin-top: 4px;
+      font-size: 50px;
+      line-height: 1;
+    }
+
+    .wallet-small {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .wallet-small div {
+      padding: 12px;
+      border-radius: 14px;
+      background: var(--paper);
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .wallet-small b {
+      display: block;
+      color: var(--ink);
+      font-size: 20px;
+    }
+
+    .offers-panel,
+    .catalog-panel {
+      padding: 18px;
+    }
+
+    .offer-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .offer-card {
+      padding: 16px;
+      border-radius: 16px;
+      background: var(--paper);
+      border: 1px solid rgba(27, 24, 20, .12);
+    }
+
+    .offer-card strong {
+      display: block;
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .offer-card span {
+      display: block;
+      margin-top: 8px;
+      color: var(--green);
+      font-weight: 900;
+    }
+
+    .offer-card em {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-style: normal;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .web-right {
+      display: grid;
+      gap: 18px;
+    }
+
+    .catalog-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .catalog-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 13px;
+      border-radius: 14px;
+      background: #fff;
+      border: 1px solid rgba(27, 24, 20, .1);
+      font-weight: 800;
+    }
+
+    .catalog-item span {
+      color: var(--accent);
+    }
+
+    .web-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 14px 20px;
+      border-top: 1px solid rgba(27, 24, 20, .12);
+      color: var(--muted);
+      background: rgba(255, 250, 244, .72);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    @media (max-width: 900px) {
+      .sheet { padding: 24px; }
+      .topbar, .sections, .bottom, .equation { grid-template-columns: 1fr; display: grid; }
+      h1 { text-align: left; font-size: 42px; }
+      .diagram {
+        grid-template-columns: 1fr;
+      }
+      .arrow {
+        transform: rotate(90deg);
+        min-height: 56px;
+      }
+      .grid-list { grid-template-columns: 1fr; }
+      .mockups { grid-template-columns: 1fr; }
+      .web-main { grid-template-columns: 1fr; }
+      .offer-grid, .catalog-list { grid-template-columns: 1fr; }
+      .web-nav, .web-foot { align-items: flex-start; flex-direction: column; }
+      .deck-title { align-items: flex-start; flex-direction: column; }
+      .slides { grid-template-columns: 1fr; }
+      .slide.feature { grid-column: span 1; }
+      .slide.feature h3 { font-size: 42px; }
+      .slide.feature .slide-list, .money-strip { grid-template-columns: 1fr; }
+    }
+
+    @media print {
+      body { background: #fff; }
+      .sheet {
+        width: 100%;
+        margin: 0;
+        border: 0;
+        box-shadow: none;
+        border-radius: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="sheet">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">C</div>
+        <div class="brand-text">
+          <small>Bolera</small>
+          <strong>Contrastes</strong>
+        </div>
+      </div>
+      <h1>Puntos Contrastes</h1>
+    </header>
+
+    <p class="subtitle">
+      Sistema interno de saldo: el cliente recarga dinero en su fondo personal y paga dentro del pub usando puntos Contrastes.
+    </p>
+
+    <section class="deck" aria-label="Presentacion profesional">
+      <div class="deck-title">
+        <h2>Presentacion ejecutiva</h2>
+        <span>Propuesta para Bolera Contrastes</span>
+      </div>
+
+      <div class="slides">
+        <article class="slide feature">
+          <span class="slide-number">1</span>
+          <h3>Un saldo interno para que el cliente vuelva y pague mas rapido.</h3>
+          <p>
+            Puntos Contrastes convierte recargas con Bizum en saldo usable dentro del pub. El cliente ve su saldo, recibe bonus por recargar y paga con QR o telefono en barra.
+          </p>
+          <div class="slide-list">
+            <div>Mas recurrencia</div>
+            <div>Pago mas rapido</div>
+            <div>Promociones controladas</div>
+          </div>
+        </article>
+
+        <article class="slide">
+          <span class="slide-number">2</span>
+          <h3>Problema actual</h3>
+          <p>
+            Las promociones normales se olvidan, no crean cuenta cliente y no dejan trazabilidad de quien vuelve, cuanto recarga o que consume.
+          </p>
+          <div class="slide-list">
+            <div>No hay saldo visible para el cliente</div>
+            <div>No hay historial de recargas y pagos</div>
+            <div>Cuesta incentivar recargas grandes</div>
+          </div>
+        </article>
+
+        <article class="slide">
+          <span class="slide-number">3</span>
+          <h3>Funcionamiento simple</h3>
+          <p>
+            El cliente crea cuenta, recarga saldo, obtiene puntos y los usa para pagar consumiciones en Bolera Contrastes.
+          </p>
+          <div class="slide-list">
+            <div>Registro con telefono, email o PIN</div>
+            <div>Saldo visible en la web</div>
+            <div>Pago en barra con QR o telefono</div>
+          </div>
+        </article>
+
+        <article class="slide">
+          <span class="slide-number">4</span>
+          <h3>Recargas con incentivo</h3>
+          <p>
+            La equivalencia base es clara: 1 euro = 1 punto. Las ofertas empujan al cliente a recargar mas porque recibe saldo extra.
+          </p>
+          <div class="money-strip">
+            <div><b>10 euros</b>10,5 puntos</div>
+            <div><b>30 euros</b>32 puntos</div>
+            <div><b>50 euros</b>55 puntos</div>
+          </div>
+        </article>
+
+        <article class="slide">
+          <span class="slide-number">5</span>
+          <h3>Pago por Bizum</h3>
+          <p>
+            La recarga deberia cobrarse con Bizum comercio mediante TPV virtual o Redsys. Asi la confirmacion del pago llega automatica y el saldo se actualiza sin hacerlo a mano.
+          </p>
+          <div class="slide-list">
+            <div>Cliente elige importe de recarga</div>
+            <div>Confirma Bizum en su banco</div>
+            <div>La web suma saldo al confirmarse el pago</div>
+          </div>
+        </article>
+
+        <article class="slide">
+          <span class="slide-number">6</span>
+          <h3>Uso en barra</h3>
+          <p>
+            El camarero no necesita explicar nada complejo: identifica al cliente, selecciona producto y confirma el descuento de puntos.
+          </p>
+          <div class="slide-list">
+            <div>Escanear QR o buscar telefono</div>
+            <div>Seleccionar Coca-Cola, cafe, tapa o menu</div>
+            <div>Descontar saldo y registrar movimiento</div>
+          </div>
+        </article>
+
+        <article class="slide">
+          <span class="slide-number">7</span>
+          <h3>Control y seguridad</h3>
+          <p>
+            El sistema debe registrar cada recarga, pago y anulacion. Eso evita errores en barra y permite revisar movimientos sospechosos.
+          </p>
+          <div class="slide-list">
+            <div>Historial por cliente</div>
+            <div>Usuario empleado en cada operacion</div>
+            <div>Anulaciones solo desde panel interno</div>
+          </div>
+        </article>
+
+        <article class="slide">
+          <span class="slide-number">8</span>
+          <h3>Punto legal a validar</h3>
+          <p>
+            Debe presentarse como saldo interno para consumir solo en el pub. No conviene permitir retirada libre de dinero ni transferencias entre clientes sin asesoramiento.
+          </p>
+          <div class="source-links">
+            <a href="https://bizum.com/es/bizum-empresas/">Bizum para empresas</a>
+            <a href="https://pagosonline.redsys.es/desarrolladores-inicio/documentacion-otros-metodos-de-pago/desarrolladores-bizum-1/">Redsys Bizum</a>
+            <a href="https://clientebancario.bde.es/pcb/es/menu-horizontal/productosservici/serviciospago/Dinero_electronico.html">Banco de Espana: dinero electronico</a>
+          </div>
+        </article>
+
+        <article class="slide feature">
+          <span class="slide-number">9</span>
+          <h3>Propuesta de piloto: empezar pequeno y medir.</h3>
+          <p>
+            Lanzar primero con clientes habituales, recargas manuales o Bizum comercio, productos concretos y revision semanal de movimientos. Si funciona, se conecta con TPV/HIOPOS.
+          </p>
+          <div class="slide-list">
+            <div>20-30 clientes iniciales</div>
+            <div>3 importes de recarga</div>
+            <div>Panel interno para barra</div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section-label" aria-label="Esquema operativo">
+      <h2>Esquema operativo</h2>
+      <p>
+        Resumen visual del flujo completo: recarga, saldo y pago con puntos dentro del pub.
+      </p>
+    </section>
+
+    <section class="equation" aria-label="Equivalencias base">
+      <div class="metric">
+        <b>1 euro = 1 punto</b>
+        <span>Recarga directa</span>
+      </div>
+      <div class="metric">
+        <b>Coca-Cola = 2 puntos</b>
+        <span>Ejemplo de pago</span>
+      </div>
+      <div class="metric">
+        <b>Saldo cerrado</b>
+        <span>Solo para el pub</span>
+      </div>
+    </section>
+
+    <section class="diagram" aria-label="Flujo principal">
+      <article class="node" data-number="1">
+        <h2>Cliente recarga</h2>
+        <ul>
+          <li>Anade dinero a su fondo personal.</li>
+          <li>Se identifica con QR, telefono o cuenta.</li>
+          <li>El sistema suma los puntos equivalentes.</li>
+        </ul>
+      </article>
+
+      <div class="arrow">→</div>
+
+      <article class="node" data-number="2">
+        <h2>Tiene saldo</h2>
+        <ul>
+          <li>Ve sus puntos disponibles.</li>
+          <li>Consulta recargas, pagos y movimientos.</li>
+          <li>Puede guardar saldo para proximas visitas.</li>
+        </ul>
+      </article>
+
+      <div class="arrow">→</div>
+
+      <article class="node" data-number="3">
+        <h2>Paga con puntos</h2>
+        <ul>
+          <li>Pide bebida, comida o evento.</li>
+          <li>El camarero confirma el pago.</li>
+          <li>El sistema descuenta el saldo.</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="sections">
+      <article class="panel">
+        <h2>Que se puede pagar</h2>
+        <ul class="grid-list">
+          <li class="pill">Bebidas</li>
+          <li class="pill">Tapas y comida</li>
+          <li class="pill">Reservas</li>
+          <li class="pill">Eventos</li>
+          <li class="pill">Menus especiales</li>
+          <li class="pill">Promociones internas</li>
+        </ul>
+      </article>
+
+      <article class="panel">
+        <h2>Control del pub</h2>
+        <div class="rules">
+          <div class="rule"><b>✓</b><span>Recargar saldo de clientes desde panel o caja.</span></div>
+          <div class="rule"><b>✓</b><span>Descontar puntos al pagar productos del pub.</span></div>
+          <div class="rule"><b>✓</b><span>Ver historial de recargas, pagos y anulaciones.</span></div>
+          <div class="rule"><b>✓</b><span>Bloquear movimientos sospechosos o corregir errores.</span></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="bottom" aria-label="Ejemplos de recompensas">
+      <div class="example">
+        <strong>1,5 puntos</strong>
+        <span>Cafe de 1,50 euros pagado con saldo.</span>
+      </div>
+      <div class="example">
+        <strong>2 puntos</strong>
+        <span>Coca-Cola u otra bebida seleccionada.</span>
+      </div>
+      <div class="example">
+        <strong>9 puntos</strong>
+        <span>Hamburguesa o menu de 9 euros.</span>
+      </div>
+    </section>
+
+    <div class="note">
+      Recomendacion: presentarlo como "saldo interno" o "puntos Contrastes", no como moneda. Debe quedar claro que solo se usa dentro del pub y no es dinero transferible.
+    </div>
+
+    <section class="usage" aria-label="Ejemplo de uso real">
+      <h2>Ejemplo de como se veria</h2>
+      <p class="usage-lead">
+        Una operacion sencilla en barra: el camarero identifica al cliente, recarga su fondo personal o descuenta puntos cuando paga una consumicion.
+      </p>
+
+      <div class="mockups">
+        <article class="screen">
+          <div class="screen-top">
+            Caja Contrastes
+            <span>Mesa 4</span>
+          </div>
+          <div class="screen-body">
+            <div class="recharge-box">
+              <div><span>Recarga</span><b>20 euros</b></div>
+              <em>→</em>
+              <div><span>Saldo</span><b>+20 puntos</b></div>
+            </div>
+            <div class="ticket-row"><strong>Coca-Cola</strong><span>2 puntos</span></div>
+            <div class="ticket-row"><strong>Cafe</strong><span>1,5 puntos</span></div>
+            <div class="ticket-row"><strong>Tapa</strong><span>4,5 puntos</span></div>
+            <div class="total-row">
+              <span>Total a pagar</span>
+              <b>8 puntos</b>
+            </div>
+            <div class="total-row">
+              <span>Saldo despues</span>
+              <b>12 puntos</b>
+            </div>
+            <div class="actions">
+              <div class="action">Pagar con puntos</div>
+              <div class="action secondary">Recargar saldo</div>
+            </div>
+          </div>
+        </article>
+
+        <article class="screen">
+          <div class="screen-top">
+            Cliente
+            <span>App / Web</span>
+          </div>
+          <div class="screen-body">
+            <div class="customer-card">
+              <div class="avatar">C</div>
+              <div>
+                <strong>Cliente registrado</strong>
+                <div style="color: var(--muted); font-weight: 700;">Saldo disponible</div>
+              </div>
+              <div class="points-balance">
+                <b>20</b>
+                <span>puntos contrastes</span>
+              </div>
+              <div class="qr" aria-label="QR de cliente">
+                <i></i><i></i><i></i><i></i><i></i>
+                <i></i><i></i><i></i><i></i><i></i>
+                <i></i><i></i><i></i><i></i><i></i>
+                <i></i><i></i><i></i><i></i><i></i>
+                <i></i><i></i><i></i><i></i><i></i>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="screen">
+          <div class="screen-top">
+            Canje
+            <span>Validacion</span>
+          </div>
+          <div class="screen-body">
+            <div class="redeem-item">
+              <strong>Coca-Cola</strong>
+              <span>2 puntos</span>
+            </div>
+            <div class="redeem-item" style="margin-top: 10px;">
+              <strong>Cafe</strong>
+              <span>1,5 puntos</span>
+            </div>
+            <div class="redeem-item" style="margin-top: 10px;">
+              <strong>Hamburguesa</strong>
+              <span>9 puntos</span>
+            </div>
+            <div class="mini-flow">
+              <div class="mini-step">1. Escanear QR del cliente</div>
+              <div class="mini-step">2. Elegir producto</div>
+              <div class="mini-step">3. Confirmar pago y descontar saldo</div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="web-preview" aria-label="Vista web cliente">
+      <h2>Como se veria en la web</h2>
+      <p class="usage-lead">
+        El cliente entra, se registra, ve su saldo y elige una recarga. Las ofertas dan saldo extra para incentivar que cargue mas dinero en su cuenta.
+      </p>
+
+      <div class="web-frame">
+        <div class="web-nav">
+          <strong>Puntos Contrastes</strong>
+          <span>Mi saldo · Recargar · Movimientos · Ofertas</span>
+        </div>
+
+        <div class="web-main">
+          <div>
+            <article class="login-panel">
+              <h3>Registro rapido</h3>
+              <div class="field">Nombre y apellidos</div>
+              <div class="field">Telefono o email</div>
+              <div class="field">PIN de 4 numeros</div>
+              <div class="web-button">Crear cuenta</div>
+            </article>
+
+            <article class="wallet-panel" style="margin-top: 18px;">
+              <h3>Mi cuenta</h3>
+              <div class="wallet-balance">
+                <span>Saldo disponible</span>
+                <b>32,5 puntos</b>
+              </div>
+              <div class="wallet-small">
+                <div><b>+2 puntos</b>Bonus acumulado</div>
+                <div><b>7 pagos</b>Este mes</div>
+              </div>
+            </article>
+          </div>
+
+          <div class="web-right">
+            <article class="offers-panel">
+              <h3>Ofertas de recarga</h3>
+              <div class="offer-grid">
+                <div class="offer-card">
+                  <strong>10 euros</strong>
+                  <span>Recibes 10,5 puntos</span>
+                  <em>Ganas 0,5 puntos extra</em>
+                </div>
+                <div class="offer-card">
+                  <strong>30 euros</strong>
+                  <span>Recibes 32 puntos</span>
+                  <em>Ganas 2 puntos extra</em>
+                </div>
+                <div class="offer-card">
+                  <strong>50 euros</strong>
+                  <span>Recibes 55 puntos</span>
+                  <em>Ganas 5 puntos extra</em>
+                </div>
+              </div>
+            </article>
+
+            <article class="catalog-panel">
+              <h3>Pagar en el pub</h3>
+              <div class="catalog-list">
+                <div class="catalog-item"><strong>Coca-Cola</strong><span>2 puntos</span></div>
+                <div class="catalog-item"><strong>Cafe</strong><span>1,5 puntos</span></div>
+                <div class="catalog-item"><strong>Tapa</strong><span>4,5 puntos</span></div>
+                <div class="catalog-item"><strong>Hamburguesa</strong><span>9 puntos</span></div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <div class="web-foot">
+          <span>El cliente paga escaneando su QR o dando su telefono en barra.</span>
+          <span>Todos los movimientos quedan registrados.</span>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

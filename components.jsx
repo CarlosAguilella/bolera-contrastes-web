@@ -71,6 +71,12 @@ function Header({ page, onNav }) {
         </button>
         <nav className="bc-nav">
           <button
+            className={"bc-nav__link is-text " + (page === 'puntos' ? 'is-active' : '')}
+            onClick={() => onNav('puntos')}
+          >
+            Puntos
+          </button>
+          <button
             className={"bc-nav__link is-text " + (page === 'carta' ? 'is-active' : '')}
             onClick={() => onNav('carta')}
           >
@@ -210,6 +216,7 @@ function Footer({ onNav }) {
             <p style={{ fontSize: 14, margin: 0 }}>
               <a href={`tel:${I.phone}`}>{I.phonePretty}</a><br/>
               <a href={I.facebookUrl}>Facebook</a><br/>
+              <button onClick={() => onNav('puntos')}>Puntos Contrastes</button><br/>
               <button onClick={() => onNav('reservar')}>Reservar mesa</button>
             </p>
           </div>
@@ -231,8 +238,8 @@ function Footer({ onNav }) {
 function MobileCTA({ onNav }) {
   return (
     <div className="mobile-cta">
+      <button className="btn btn-secondary btn-sm" onClick={() => onNav('puntos')}>Puntos</button>
       <button className="btn btn-secondary btn-sm" onClick={() => onNav('carta')}>Carta</button>
-      <a className="btn btn-primary btn-sm" href={`tel:${window.BC_INFO.phone}`}>Llamar</a>
       <button className="btn btn-whatsapp btn-sm" onClick={() => onNav('reservar')}>
         WhatsApp
       </button>
