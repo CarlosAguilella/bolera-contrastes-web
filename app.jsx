@@ -108,7 +108,7 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 
 function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
-  const [page, setPage] = useStateA("home");
+  const [page, setPage] = useStateA(window.BC_INITIAL_PAGE || "home");
 
   // Aplicar tokens cuando cambian tweaks
   useEffectA(() => {
@@ -128,7 +128,13 @@ function App() {
       {page === 'carta' && <Carta onNav={handleNav} tweaks={t} />}
       {page === 'reservar' && <Reservar onNav={handleNav} />}
       {page === 'eventos' && <Eventos onNav={handleNav} />}
-      {page === 'puntos' && <Puntos onNav={handleNav} />}
+      {page === 'puntos' && (
+        <Puntos
+          onNav={handleNav}
+          initialView={window.BC_POINTS_INITIAL_VIEW || "cliente"}
+          adminOnly={Boolean(window.BC_POINTS_ADMIN_ONLY)}
+        />
+      )}
       {page === 'contacto' && <Home onNav={handleNav} tweaks={t} />}
       <Footer onNav={handleNav} />
       <MobileCTA onNav={handleNav} />

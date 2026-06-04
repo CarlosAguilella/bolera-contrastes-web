@@ -162,9 +162,9 @@ function parseCustomerQrPayload(rawValue) {
   return value;
 }
 
-function Puntos() {
+function Puntos({ initialView = "cliente", adminOnly = false }) {
   const [store, setStore] = useStateP(loadPointsStore);
-  const [view, setView] = useStateP("cliente");
+  const [view, setView] = useStateP(adminOnly ? "barra" : initialView);
   const [selectedCustomerId, setSelectedCustomerId] = useStateP(() => store.customers[0]?.id || "");
   const [notice, setNotice] = useStateP("");
   const [registerForm, setRegisterForm] = useStateP({ name: "", phone: "", pin: "" });
@@ -418,10 +418,11 @@ function Puntos() {
             <p className="points-hero__copy pretty">
               Registro de clientes, saldo recargable, ofertas tipo Bizum, pagos con QR o teléfono e historial completo para controlar cada movimiento.
             </p>
-            <div className="points-hero__actions">
-              <button className="btn btn-primary btn-lg" onClick={() => setView("cliente")}>Vista cliente</button>
-              <button className="btn btn-secondary btn-lg" onClick={() => setView("barra")}>Panel barra</button>
-            </div>
+            {!adminOnly && (
+              <div className="points-hero__actions">
+                <button className="btn btn-primary btn-lg" onClick={() => setView("cliente")}>Vista cliente</button>
+              </div>
+            )}
           </div>
 
           <div className="points-hero__card">
@@ -442,11 +443,18 @@ function Puntos() {
 
         {notice && <div className="points-toast">{notice}</div>}
 
-        <div className="points-tabs" role="tablist" aria-label="Vistas de Puntos Contrastes">
-          <button className={view === "cliente" ? "is-active" : ""} onClick={() => setView("cliente")}>Cliente</button>
-          <button className={view === "barra" ? "is-active" : ""} onClick={() => setView("barra")}>Barra / Admin</button>
-          <button onClick={resetDemo}>Reiniciar demo</button>
-        </div>
+        {!adminOnly && (
+          <div className="points-tabs" role="tablist" aria-label="Vistas de Puntos Contrastes">
+            <button className={view === "cliente" ? "is-active" : ""} onClick={() => setView("cliente")}>Cliente</button>
+            <button onClick={resetDemo}>Reiniciar demo</button>
+          </div>
+        )}
+        {adminOnly && (
+          <div className="points-tabs" role="tablist" aria-label="Panel interno Puntos Contrastes">
+            <button className="is-active" type="button">Barra / Admin</button>
+            <button onClick={resetDemo}>Reiniciar demo</button>
+          </div>
+        )}
 
         {view === "cliente" ? (
           <ClientPointsView
