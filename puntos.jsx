@@ -1,5 +1,5 @@
 // Bolera Contrastes — Puntos Contrastes (piloto local)
-const { useEffect: useEffectP, useMemo: useMemoP, useState: useStateP } = React;
+const { useEffect: useEffectP, useMemo: useMemoP, useRef: useRefP, useState: useStateP } = React;
 
 const BC_POINTS_STORAGE_KEY = "bc_points_contrastes_v1";
 
@@ -24,6 +24,12 @@ function pointsNowIso() {
 
 function pointsId(prefix) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function bizumReference(customer, offer) {
+  const customerPart = customerShortCode(customer) || "CLIENTE";
+  const offerPart = String(offer?.euros || 0).replace(/\D/g, "");
+  return `BC-${customerPart}-${offerPart}`;
 }
 
 function normalizePoints(value) {
@@ -142,6 +148,20 @@ function buildQrCells(seed) {
   });
 }
 
+function customerQrPayload(customer) {
+  return customer ? `BCPUNTOS:${customer.id}` : "";
+}
+
+function customerShortCode(customer) {
+  return customer ? customer.id.replace(/^cli-/, "").slice(0, 10).toUpperCase() : "";
+}
+
+function parseCustomerQrPayload(rawValue) {
+  const value = String(rawValue || "").trim();
+  if (value.startsWith("BCPUNTOS:")) return value.replace("BCPUNTOS:", "");
+  return value;
+}
+
 function Puntos() {
   const [store, setStore] = useStateP(loadPointsStore);
   const [view, setView] = useStateP("cliente");
@@ -151,6 +171,7 @@ function Puntos() {
   const [manualForm, setManualForm] = useStateP({ amount: "", reason: "" });
   const [adminPin, setAdminPin] = useStateP("");
   const [adminUnlocked, setAdminUnlocked] = useStateP(false);
+  const [pendingBizum, setPendingBizum] = useStateP(null);
 
   useEffectP(() => {
     localStorage.setItem(BC_POINTS_STORAGE_KEY, JSON.stringify(store));
@@ -161,6 +182,10 @@ function Puntos() {
       setSelectedCustomerId(store.customers[0].id);
     }
   }, [selectedCustomerId, store.customers]);
+
+  useEffectP(() => {
+    setPendingBizum(null);
+  }, [selectedCustomerId]);
 
   const selectedCustomer = useMemoP(
     () => store.customers.find((customer) => customer.id === selectedCustomerId) || store.customers[0],
@@ -279,6 +304,29 @@ function Puntos() {
     showNotice(`Recarga añadida: ${formatPoints(offer.points)}.`);
   }
 
+  function startBizumRecharge(offer) {
+    if (!selectedCustomer) return;
+    setPendingBizum({
+      offer,
+      reference: bizumReference(selectedCustomer, offer),
+      createdAt: pointsNowIso(),
+    });
+    showNotice("Bizum preparado. Confirma cuando esté pagado.");
+  }
+
+  function confirmBizumRecharge() {
+    if (!selectedCustomer || !pendingBizum) return;
+    pushTransaction(selectedCustomer.id, {
+      type: "recarga",
+      amount: pendingBizum.offer.points,
+      label: `Bizum ${formatEuros(pendingBizum.offer.euros)} + ${formatPoints(pendingBizum.offer.bonus)} extra`,
+      employee: "Web",
+      method: `Bizum demo · Ref. ${pendingBizum.reference}`,
+    });
+    showNotice(`Bizum confirmado: ${formatPoints(pendingBizum.offer.points)} añadidos.`);
+    setPendingBizum(null);
+  }
+
   function chargeProduct(product) {
     if (!selectedCustomer) return;
     if (normalizePoints(selectedCustomer.balance) < product.points) {
@@ -341,6 +389,23 @@ function Puntos() {
     showNotice("PIN incorrecto. PIN piloto: 1998.");
   }
 
+  function selectCustomerFromQr(rawValue) {
+    const parsedId = parseCustomerQrPayload(rawValue);
+    const normalized = String(parsedId || "").trim().toLowerCase();
+    const customer = store.customers.find((item) => {
+      return item.id.toLowerCase() === normalized || customerShortCode(item).toLowerCase() === normalized;
+    });
+
+    if (!customer) {
+      showNotice("QR no reconocido. Prueba con el código manual del cliente.");
+      return false;
+    }
+
+    setSelectedCustomerId(customer.id);
+    showNotice(`Cliente seleccionado: ${customer.name}.`);
+    return true;
+  }
+
   return (
     <main className="points-page" data-screen-label="Puntos Contrastes">
       <section className="points-hero">
@@ -392,7 +457,10 @@ function Puntos() {
             selectedTransactions={selectedTransactions}
             setSelectedCustomerId={setSelectedCustomerId}
             onRegister={registerCustomer}
-            onRecharge={rechargeCustomer}
+            pendingBizum={pendingBizum}
+            onStartBizum={startBizumRecharge}
+            onConfirmBizum={confirmBizumRecharge}
+            onCancelBizum={() => setPendingBizum(null)}
           />
         ) : !adminUnlocked ? (
           <AdminLock adminPin={adminPin} setAdminPin={setAdminPin} onUnlock={unlockAdmin} />
@@ -407,6 +475,7 @@ function Puntos() {
             onRecharge={rechargeCustomer}
             onCharge={chargeProduct}
             onAdjust={manualAdjustment}
+            onScanCustomer={selectCustomerFromQr}
           />
         )}
       </section>
@@ -438,6 +507,185 @@ function AdminLock({ adminPin, setAdminPin, onUnlock }) {
   );
 }
 
+function CustomerQr({ customer }) {
+  const canvasRef = useRefP(null);
+  const payload = customerQrPayload(customer);
+
+  useEffectP(() => {
+    if (!canvasRef.current || !payload || !window.QRCode) return;
+    window.QRCode.toCanvas(canvasRef.current, payload, {
+      width: 220,
+      margin: 1,
+      color: {
+        dark: "#1B1814",
+        light: "#FFFDF8",
+      },
+    });
+  }, [payload]);
+
+  if (!customer) return null;
+
+  if (!window.QRCode) {
+    return (
+      <div className="points-qr" aria-label="QR visual del cliente">
+        {buildQrCells(customer.id).map((active, index) => (
+          <i key={index} className={active ? "is-on" : ""}></i>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="points-qr-real">
+      <canvas ref={canvasRef} aria-label="QR real del cliente"></canvas>
+      <span>Código: {customerShortCode(customer)}</span>
+    </div>
+  );
+}
+
+function BizumDemoBox({ customer, pendingBizum, onConfirm, onCancel }) {
+  const phone = window.BC_INFO?.phonePretty || window.BC_INFO?.phone || "Teléfono del local";
+  const { offer, reference } = pendingBizum;
+
+  return (
+    <div className="points-bizum-box">
+      <div>
+        <span className="eyebrow">Pago Bizum</span>
+        <h3>Envía {formatEuros(offer.euros)}</h3>
+        <p>
+          Cliente: <strong>{customer.name}</strong><br/>
+          Número del local: <strong>{phone}</strong><br/>
+          Concepto: <strong>{reference}</strong>
+        </p>
+      </div>
+      <div className="points-bizum-box__summary">
+        <span>Saldo que recibirá</span>
+        <strong>{formatPoints(offer.points)}</strong>
+        <em>Incluye +{formatPoints(offer.bonus)} extra</em>
+      </div>
+      <div className="points-bizum-box__actions">
+        <button className="btn btn-primary" type="button" onClick={onConfirm}>He hecho el Bizum</button>
+        <button className="btn btn-secondary" type="button" onClick={onCancel}>Cancelar</button>
+      </div>
+      <p className="points-help">
+        Piloto: este botón simula la confirmación. En producción solo se sumará saldo cuando Redsys/Bizum confirme el pago.
+      </p>
+    </div>
+  );
+}
+
+function QrScanner({ onScanCustomer }) {
+  const videoRef = useRefP(null);
+  const canvasRef = useRefP(null);
+  const streamRef = useRefP(null);
+  const frameRef = useRefP(null);
+  const [isScanning, setIsScanning] = useStateP(false);
+  const [manualCode, setManualCode] = useStateP("");
+  const [scanStatus, setScanStatus] = useStateP("Listo para abrir cámara.");
+
+  function stopScanner() {
+    if (frameRef.current) cancelAnimationFrame(frameRef.current);
+    frameRef.current = null;
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+    }
+    streamRef.current = null;
+    setIsScanning(false);
+  }
+
+  useEffectP(() => {
+    return () => stopScanner();
+  }, []);
+
+  function scanFrame() {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || !window.jsQR) return;
+
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      const code = window.jsQR(imageData.data, imageData.width, imageData.height);
+
+      if (code?.data) {
+        const found = onScanCustomer(code.data);
+        setScanStatus(found ? "QR leído y cliente seleccionado." : "QR leído, pero no coincide con ningún cliente.");
+        stopScanner();
+        return;
+      }
+    }
+
+    frameRef.current = requestAnimationFrame(scanFrame);
+  }
+
+  async function startScanner() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setScanStatus("Este navegador no permite cámara aquí. Usa el código manual.");
+      return;
+    }
+
+    if (!window.jsQR) {
+      setScanStatus("No se ha cargado el lector QR. Usa el código manual.");
+      return;
+    }
+
+    try {
+      stopScanner();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      videoRef.current.srcObject = stream;
+      await videoRef.current.play();
+      setIsScanning(true);
+      setScanStatus("Apunta la cámara al QR del cliente.");
+      frameRef.current = requestAnimationFrame(scanFrame);
+    } catch (error) {
+      setScanStatus("No se pudo abrir la cámara. Revisa permisos o usa el código manual.");
+      setIsScanning(false);
+    }
+  }
+
+  function submitManualCode(event) {
+    event.preventDefault();
+    if (!manualCode.trim()) return;
+    const found = onScanCustomer(manualCode);
+    setScanStatus(found ? "Código manual reconocido." : "Código manual no encontrado.");
+    if (found) setManualCode("");
+  }
+
+  return (
+    <div className="points-scanner">
+      <div className="points-section-title">
+        <h3>Lector QR</h3>
+        <span>Cámara o código manual</span>
+      </div>
+      <div className="points-scanner__stage">
+        <video ref={videoRef} muted playsInline></video>
+        {!isScanning && <div className="points-scanner__empty">Cámara apagada</div>}
+        <canvas ref={canvasRef} hidden></canvas>
+      </div>
+      <div className="points-scanner__actions">
+        <button className="btn btn-primary" type="button" onClick={startScanner}>Abrir cámara</button>
+        <button className="btn btn-secondary" type="button" onClick={stopScanner}>Cerrar</button>
+      </div>
+      <form className="points-scanner__manual" onSubmit={submitManualCode}>
+        <input
+          value={manualCode}
+          onChange={(event) => setManualCode(event.target.value)}
+          placeholder="Código del cliente"
+        />
+        <button className="btn btn-secondary" type="submit">Buscar</button>
+      </form>
+      <p className="points-help">{scanStatus}</p>
+    </div>
+  );
+}
+
 function ClientPointsView({
   customer,
   customers,
@@ -446,7 +694,10 @@ function ClientPointsView({
   selectedTransactions,
   setSelectedCustomerId,
   onRegister,
-  onRecharge,
+  pendingBizum,
+  onStartBizum,
+  onConfirmBizum,
+  onCancelBizum,
 }) {
   return (
     <div className="points-grid">
@@ -510,11 +761,7 @@ function ClientPointsView({
               <strong>{formatPoints(customer.balance)}</strong>
               <small>1 € = 1 punto. Saldo solo para Bolera Contrastes.</small>
             </div>
-            <div className="points-qr" aria-label="QR visual del cliente">
-              {buildQrCells(customer.id).map((active, index) => (
-                <i key={index} className={active ? "is-on" : ""}></i>
-              ))}
-            </div>
+            <CustomerQr customer={customer} />
             <p className="points-help">En barra se escanea este QR o se busca tu teléfono.</p>
           </React.Fragment>
         )}
@@ -527,7 +774,7 @@ function ClientPointsView({
         </div>
         <div className="points-offers">
           {BC_POINTS_OFFERS.map((offer) => (
-            <button key={offer.id} className="points-offer" onClick={() => onRecharge(offer, "Web")} type="button">
+            <button key={offer.id} className="points-offer" onClick={() => onStartBizum(offer)} type="button">
               <span>{offer.label}</span>
               <strong>{formatEuros(offer.euros)}</strong>
               <em>Recibes {formatPoints(offer.points)}</em>
@@ -536,8 +783,16 @@ function ClientPointsView({
           ))}
         </div>
         <p className="points-help">
-          En producción este botón abrirá Bizum comercio mediante Redsys/TPV virtual. En el piloto simula el pago confirmado.
+          En producción este paso se confirmará automáticamente con Bizum comercio mediante Redsys/TPV virtual.
         </p>
+        {pendingBizum && customer && (
+          <BizumDemoBox
+            customer={customer}
+            pendingBizum={pendingBizum}
+            onConfirm={onConfirmBizum}
+            onCancel={onCancelBizum}
+          />
+        )}
       </section>
 
       <section className="points-panel">
@@ -561,6 +816,7 @@ function BarPointsView({
   onRecharge,
   onCharge,
   onAdjust,
+  onScanCustomer,
 }) {
   return (
     <div className="points-admin">
@@ -594,6 +850,10 @@ function BarPointsView({
                 <p>{customer.phone}</p>
               </div>
               <strong>{formatPoints(customer.balance)}</strong>
+            </div>
+
+            <div className="points-admin-section">
+              <QrScanner onScanCustomer={onScanCustomer} />
             </div>
 
             <div className="points-admin-section">
