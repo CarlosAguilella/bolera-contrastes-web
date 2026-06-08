@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Presentacion Puntos Contrastes + Bizum</title>
+  <style>
+    :root {
+      --bg: #f5efe6;
+      --paper: #fffaf4;
+      --ink: #1b1814;
+      --muted: #635b53;
+      --line: rgba(27, 24, 20, .16);
+      --accent: #c8552b;
+      --accent-soft: #f2d8c7;
+      --green: #2f7d4a;
+      --gold: #b17a00;
+      --danger: #a33a2c;
+      --serif: "Georgia", "Times New Roman", serif;
+      --sans: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 12% 8%, rgba(200, 85, 43, .16), transparent 30%),
+        linear-gradient(135deg, #fbf4eb 0%, #eadcc8 100%);
+      font-family: var(--sans);
+      line-height: 1.35;
+    }
+
+    a { color: inherit; }
+
+    .deck-nav {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      z-index: 20;
+      display: flex;
+      gap: 8px;
+      transform: translateX(-50%);
+      padding: 8px;
+      border: 1px solid rgba(255, 250, 244, .18);
+      border-radius: 999px;
+      background: rgba(27, 24, 20, .84);
+      backdrop-filter: blur(14px);
+    }
+
+    .deck-nav a {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      color: #fffaf4;
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .deck-nav a:hover { background: rgba(255, 250, 244, .18); }
+
+    .slide {
+      min-height: 100vh;
+      scroll-snap-align: start;
+      display: grid;
+      place-items: center;
+      padding: 42px;
+    }
+
+    .slide-inner {
+      width: min(1180px, calc(100vw - 48px));
+      min-height: min(720px, calc(100vh - 84px));
+      display: grid;
+      align-content: stretch;
+      gap: 26px;
+      padding: 42px;
+      border: 1px solid var(--line);
+      border-radius: 30px;
+      background: rgba(255, 250, 244, .94);
+      box-shadow: 0 24px 90px rgba(27, 24, 20, .14);
+    }
+
+    .slide-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 22px;
+      padding-bottom: 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 250px;
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      color: var(--bg);
+      background: var(--ink);
+      font: italic 30px var(--serif);
+    }
+
+    .brand small {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    .brand strong {
+      display: block;
+      margin-top: -3px;
+      font: italic 34px/1 var(--serif);
+    }
+
+    .slide-number {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      font-family: var(--serif);
+      font-weight: 400;
+      letter-spacing: -.01em;
+      line-height: .98;
+    }
+
+    h1 { font-size: clamp(62px, 7vw, 112px); max-width: 980px; }
+    h2 { font-size: clamp(46px, 5vw, 78px); max-width: 940px; }
+    h3 { font-size: 34px; }
+
+    .lead {
+      max-width: 860px;
+      color: var(--muted);
+      font-size: clamp(19px, 2vw, 25px);
+      font-weight: 650;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.18fr .82fr;
+      gap: 28px;
+      align-items: end;
+    }
+
+    .hero-card {
+      align-self: stretch;
+      display: grid;
+      align-content: space-between;
+      gap: 24px;
+      padding: 30px;
+      border-radius: 28px;
+      color: #fffaf4;
+      background: linear-gradient(135deg, var(--ink), #46382e);
+    }
+
+    .hero-card span,
+    .stat span,
+    .pill small,
+    .step small {
+      display: block;
+      color: rgba(255, 250, 244, .72);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    .hero-card strong {
+      display: block;
+      font: 72px/.9 var(--serif);
+    }
+
+    .hero-card p {
+      margin: 0;
+      color: rgba(255, 250, 244, .76);
+      font-size: 18px;
+      font-weight: 650;
+    }
+
+    .grid-2,
+    .grid-3,
+    .grid-4 {
+      display: grid;
+      gap: 18px;
+    }
+
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+    .card,
+    .step,
+    .metric,
+    .quote,
+    .warning {
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--paper);
+    }
+
+    .card p,
+    .step p,
+    .metric p {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 17px;
+      font-weight: 650;
+    }
+
+    .metric strong {
+      display: block;
+      font: 48px/.9 var(--serif);
+    }
+
+    .metric em,
+    .card em {
+      display: inline-block;
+      margin-top: 12px;
+      color: var(--green);
+      font-style: normal;
+      font-weight: 900;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .step {
+      position: relative;
+      min-height: 220px;
+    }
+
+    .step b {
+      display: grid;
+      place-items: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      color: #fff;
+      background: var(--accent);
+    }
+
+    .step h3 { margin-top: 18px; font-size: 30px; }
+
+    .wallet-ui {
+      display: grid;
+      grid-template-columns: .8fr 1.2fr;
+      gap: 18px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: #f8efe5;
+    }
+
+    .phone {
+      overflow: hidden;
+      border: 10px solid var(--ink);
+      border-radius: 34px;
+      background: var(--paper);
+      box-shadow: 0 18px 44px rgba(27, 24, 20, .18);
+    }
+
+    .phone-head {
+      padding: 18px;
+      color: #fffaf4;
+      background: var(--ink);
+    }
+
+    .phone-head strong {
+      display: block;
+      font: 32px/1 var(--serif);
+    }
+
+    .phone-body {
+      display: grid;
+      gap: 12px;
+      padding: 18px;
+    }
+
+    .balance {
+      padding: 18px;
+      border-radius: 20px;
+      color: #fffaf4;
+      background: linear-gradient(135deg, var(--ink), #47382f);
+    }
+
+    .balance span {
+      display: block;
+      color: rgba(255, 250, 244, .72);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    .balance b {
+      display: block;
+      margin-top: 6px;
+      font: 54px/.9 var(--serif);
+    }
+
+    .offer {
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: #fff;
+      font-weight: 900;
+    }
+
+    .offer span {
+      display: block;
+      margin-top: 6px;
+      color: var(--green);
+    }
+
+    .terminal {
+      display: grid;
+      gap: 14px;
+      padding: 22px;
+      border-radius: 26px;
+      color: #fffaf4;
+      background: var(--ink);
+    }
+
+    .terminal-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 13px 0;
+      border-bottom: 1px solid rgba(255, 250, 244, .16);
+      font-weight: 800;
+    }
+
+    .terminal-action {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .button {
+      padding: 14px 16px;
+      border-radius: 999px;
+      text-align: center;
+      color: #fff;
+      background: var(--accent);
+      font-weight: 900;
+    }
+
+    .button.secondary {
+      color: var(--ink);
+      background: #fffaf4;
+    }
+
+    .pill-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .pill {
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--paper);
+      font-weight: 850;
+    }
+
+    .risk {
+      border-left: 6px solid var(--gold);
+      background: rgba(177, 122, 0, .12);
+    }
+
+    .danger {
+      border-left: 6px solid var(--danger);
+      background: rgba(163, 58, 44, .1);
+    }
+
+    .quote {
+      font-size: 24px;
+      font-weight: 750;
+    }
+
+    .quote span {
+      display: block;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .links {
+      display: grid;
+      gap: 10px;
+      margin-top: 16px;
+      color: var(--accent);
+      font-size: 15px;
+      font-weight: 850;
+    }
+
+    .links a {
+      text-underline-offset: 4px;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 12px;
+    }
+
+    .timeline-item {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 16px;
+      align-items: start;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--paper);
+    }
+
+    .timeline-item strong { color: var(--accent); }
+    .timeline-item p { margin: 0; color: var(--muted); font-weight: 650; }
+
+    .final-grid {
+      display: grid;
+      grid-template-columns: .95fr 1.05fr;
+      gap: 22px;
+      align-items: stretch;
+    }
+
+    .qr-card {
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      gap: 12px;
+      padding: 28px;
+      border-radius: 26px;
+      color: #fffaf4;
+      background: var(--ink);
+      text-align: center;
+    }
+
+    .qr-fake {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
+      width: 190px;
+      height: 190px;
+      padding: 14px;
+      border-radius: 18px;
+      background: #fffaf4;
+    }
+
+    .qr-fake i {
+      border-radius: 3px;
+      background: var(--ink);
+    }
+
+    .qr-fake i:nth-child(4n),
+    .qr-fake i:nth-child(9n),
+    .qr-fake i:nth-child(16n) {
+      background: transparent;
+    }
+
+    @media (max-width: 900px) {
+      html { scroll-snap-type: none; }
+      .slide { min-height: auto; padding: 18px; }
+      .slide-inner { width: 100%; min-height: auto; padding: 24px; }
+      .slide-top, .hero-grid, .wallet-ui, .final-grid { grid-template-columns: 1fr; display: grid; }
+      .grid-2, .grid-3, .grid-4, .flow { grid-template-columns: 1fr; }
+      .deck-nav { display: none; }
+      h1 { font-size: 54px; }
+      h2 { font-size: 42px; }
+      .brand { min-width: 0; }
+      .timeline-item { grid-template-columns: 1fr; }
+    }
+
+    @media print {
+      html { scroll-snap-type: none; }
+      body { background: #fff; }
+      .deck-nav { display: none; }
+      .slide {
+        min-height: 100vh;
+        page-break-after: always;
+        padding: 0;
+      }
+      .slide-inner {
+        width: 100%;
+        min-height: 100vh;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+      a { text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="deck-nav" aria-label="Navegacion de diapositivas">
+    <a href="#s1">1</a>
+    <a href="#s2">2</a>
+    <a href="#s3">3</a>
+    <a href="#s4">4</a>
+    <a href="#s5">5</a>
+    <a href="#s6">6</a>
+    <a href="#s7">7</a>
+    <a href="#s8">8</a>
+    <a href="#s9">9</a>
+    <a href="#s10">10</a>
+  </nav>
+
+  <section class="slide" id="s1">
+    <div class="slide-inner">
+      <header class="slide-top">
+        <div class="brand">
+          <div class="brand-mark">C</div>
+          <div>
+            <small>Bolera</small>
+            <strong>Contrastes</strong>
+          </div>
+        </div>
+        <span class="slide-number">01 · Propuesta</span>
+      </header>
+      <div class="hero-grid">
+        <div>
+          <h1>Puntos Contrastes + Bizum</h1>
+          <p class="lead">
+            Sistema de saldo interno para que los clientes recarguen, reciban bonus y paguen en barra con QR.
+          </p>
+        </div>
+        <aside class="hero-card">
+          <div>
+            <span>Idea central</span>
+            <strong>1 € = 1 punto</strong>
+          </div>
+          <p>El cliente recarga saldo, el pub controla el cobro y el camarero descuenta puntos al servir.</p>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="s2">
+    <div class="slide-inner">
+      <header class="slide-top">
+        <div class="brand"><div class="brand-mark">C</div><div><small>Bolera</small><strong>Contrastes</strong></div></div>
+        <span class="slide-number">02 · Objetivo</span>
+      </header>
+      <h2>Que el cliente vuelva y tenga dinero ya cargado para consumir.</h2>
+      <div class="grid-3">
+        <article class="card">
+          <h3>Fidelizacion</h3>
+          <p>Las recargas con bonus hacen que el cliente tenga incentivo para volver al local.</p>
+        </article>
+        <article class="card">
+          <h3>Rapidez en barra</h3>
+          <p>El camarero escanea QR, selecciona producto y descuenta saldo sin depender de efectivo.</p>
+        </article>
+        <article class="card">
+          <h3>Control</h3>
+          <p>Cada recarga, pago y ajuste queda registrado con cliente, fecha y origen.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="s3">
+    <div class="slide-inner">
+      <header class="slide-top">
+        <div class="brand"><div class="brand-mark">C</div><div><small>Bolera</small><strong>Contrastes</strong></div></div>
+        <span class="slide-number">03 · Funcionamiento</span>
+      </header>
+      <h2>Flujo simple para cliente y barra.</h2>
+      <div class="flow">
+        <article class="step"><b>1</b><h3>Registro</h3><p>Nombre, telefono y PIN.</p></article>
+        <article class="step"><b>2</b><h3>Recarga</h3><p>Elige 10 €, 30 € o 50 €.</p></article>
+        <article class="step"><b>3</b><h3>Bizum</h3><p>Envía dinero con referencia.</p></article>
+        <article class="step"><b>4</b><h3>Confirmacion</h3><p>Admin valida o TPV confirma.</p></article>
+        <article class="step"><b>5</b><h3>Pago QR</h3><p>Se descuentan puntos en barra.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="s4">
+    <div class="slide-inner">
+      <header class="slide-top">
+        <div class="brand"><div class="brand-mark">C</div><div><small>Bolera</small><strong>Contrastes</strong></div></div>
+        <span class="slide-number">04 · Recargas</span>
+      </header>
+      <h2>Ofertas pensadas para empujar recargas mas altas.</h2>
+      <div class="grid-3">
+        <article class="metric">
+          <strong>10 €</strong>
+          <p>El cliente recibe 10,5 puntos.</p>
+          <em>+0,5 puntos extra</em>
+        </article>
+        <article class="metric">
+          <strong>30 €</strong>
+          <p>El cliente recibe 32 puntos.</p>
+          <em>+2 puntos extra</em>
+        </article>
+        <article class="metric">
+          <strong>50 €</strong>
+          <p>El cliente recibe 55 puntos.</p>
+          <em>+5 puntos extra</em>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="s5">
+    <div class="slide-inner">
+      <header class="slide-top">
+        <div class="brand"><div class="brand-mark">C</div><div><small>Bolera</small><strong>Contrastes</strong></div></div>
+        <span class="slide-number">05 · Web cliente</span>
+      </header>
+      <div class="wallet-ui">
+        <div class="phone">
+          <div class="phone-head">
+            <small>Puntos Contrastes</small>
+            <strong>Mi saldo</strong>
+          </div>
+          <div class="phone-body">
+            <div class="balance"><span>Disponible</span><b>32,5</b><span>puntos</span></div>
+            <div class="offer">Recarga 30 €<span>Recibes 32 puntos</span></div>
+            <div class="offer">QR personal<span>Pago rapido en barra</span></div>
+          </div>
+        </div>
+        <div>
+          <h2>El cliente ve saldo, ofertas y QR desde la web.</h2>
+          <p class="lead">La experiencia debe ser muy clara: cuánto tengo, cuánto recargo, qué bonus recibo y cómo pago en el local.</p>
+          <div class="pill-list">
+            <span class="pill">Registro rapido</span>
+            <span class="pill">Saldo visible</span>
+            <span class="pill">Referencia Bizum</span>
+            <span class="pill">QR de cliente</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="s6">
+    <div class="slide-inner">
+      <header class="slide-top">
+        <div class="brand"><div class="brand-mark">C</div><div><small>Bolera</small><strong>Contrastes</strong></div></div>
+        <span class="slide-number">06 · Barra</span>
+      </header>
+      <div class="final-grid">
+        <div>
+          <h2>El camarero cobra con QR.</h2>
+          <p class="lead">El panel de barra separa la parte interna de la web pública y permite leer QR, buscar cliente, cobrar productos y revisar movimientos.</p>
+        </div>
+        <div class="terminal">
+          <h3>Panel barra</h3>
+          <div class="terminal-row"><span>Cliente</span><strong>Cliente demo</strong></div>
+          <div class="terminal-row"><span>Saldo</span><strong>32,5 puntos</strong></div>
+          <div class="terminal-row"><span>Coca-Cola</span><strong>2 puntos</strong></div>
+          <div class="terminal-action">
+            <div class="button">Escanear QR</div>
+            <div class="button secondary">Cobrar</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="s7">
+    <div class="slide-inner">
+      <header class="slide-top">
+        <div class="brand"><div class="brand-mark">C</div><div><small>Bolera</small><strong>Contrastes</strong></div></div>
+        <span class="slide-number">07 · Bizum</span>
+      </header>
+      <h2>Dos fases: piloto manual ahora, automatico con TPV/Redsys despues.</h2>
+      <div class="grid-2">
+        <article class="card risk">
+          <h3>Piloto manual</h3>
+          <p>El cliente hace Bizum con referencia. El responsable comprueba que ha llegado y confirma la recarga en admin.</p>
+          <em>Sirve para probar sin contratar integracion bancaria.</em>
+        </article>
+        <article class="card">
+          <h3>Produccion automatica</h3>
+          <p>El cliente paga con Bizum comercio mediante TPV Virtual/Redsys. Solo se suman puntos cuando llega confirmacion bancaria.</p>
+          <em>Es la via correcta para cobrar online.</em>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="s8">
+    <div class="slide-inner">
+      <header class="slide-top">
+        <div class="brand"><div class="brand-mark">C</div><div><small>Bolera</small><strong>Contrastes</strong></div></div>
+        <span class="slide-number">08 · Riesgos</span>
+      </header>
+      <h2>Hay que controlar dinero, permisos y devoluciones.</h2>
+      <div class="grid-3">
+        <article class="warning danger">
+          <h3>No sumar saldo solo porque el cliente dice que pago</h3>
+          <p>En piloto, la confirmacion debe hacerla alguien del bar tras comprobar Bizum.</p>
+        </article>
+        <article class="warning risk">
+          <h3>No venderlo como moneda</h3>
+          <p>Presentarlo como saldo interno para consumir solo en Bolera Contrastes.</p>
+        </article>
+        <article class="warning">
+          <h3>Admin separado y protegido</h3>
+          <p>El panel interno debe tener login real cuando pase a produccion.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="s9">
+    <div class="slide-inner">
+      <header class="slide-top">
+        <div class="brand"><div class="brand-mark">C</div><div><small>Bolera</small><strong>Contrastes</strong></div></div>
+        <span class="slide-number">09 · Roadmap</span>
+      </header>
+      <h2>Plan recomendado.</h2>
+      <div class="timeline">
+        <div class="timeline-item"><strong>Semana 1</strong><p>Demo interna con clientes de prueba, QR y panel admin separado.</p></div>
+        <div class="timeline-item"><strong>Semana 2</strong><p>Piloto manual con 10-20 clientes habituales y comprobacion manual de Bizum.</p></div>
+        <div class="timeline-item"><strong>Semana 3</strong><p>Base de datos real, login empleado y registro de auditoria centralizado.</p></div>
+        <div class="timeline-item"><strong>Semana 4+</strong><p>TPV Virtual/Bizum comercio con Redsys y posible sincronizacion con HIOPOS.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="s10">
+    <div class="slide-inner">
+      <header class="slide-top">
+        <div class="brand"><div class="brand-mark">C</div><div><small>Bolera</small><strong>Contrastes</strong></div></div>
+        <span class="slide-number">10 · Demo y fuentes</span>
+      </header>
+      <div class="final-grid">
+        <div>
+          <h2>Ya tenemos demo navegable.</h2>
+          <p class="lead">Cliente y barra estan separados para enseñar el flujo de forma limpia.</p>
+          <div class="links">
+            <a href="https://bolera-contrastes-web.vercel.app">Web cliente: bolera-contrastes-web.vercel.app</a>
+            <a href="https://bolera-contrastes-web.vercel.app/puntos-admin">Panel admin: /puntos-admin</a>
+            <span>PIN demo admin: 1998</span>
+          </div>
+        </div>
+        <aside class="qr-card">
+          <div class="qr-fake" aria-hidden="true">
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+          </div>
+          <strong>Demo lista para presentar</strong>
+          <span>Cliente · Bizum demo · QR · Panel barra</span>
+        </aside>
+      </div>
+      <div class="links">
+        <a href="https://bizum.com/es/bizum-empresas/">Fuente: Bizum empresas</a>
+        <a href="https://pagosonline.redsys.es/desarrolladores-inicio/documentacion-otros-metodos-de-pago/desarrolladores-bizum-1/">Fuente: Redsys Bizum TPV Virtual</a>
+        <a href="https://clientebancario.bde.es/pcb/es/menu-horizontal/productosservici/serviciospago/Dinero_electronico.html">Fuente: Banco de Espana, dinero electronico</a>
+      </div>
+    </div>
+  </section>
+</body>
+</html>
