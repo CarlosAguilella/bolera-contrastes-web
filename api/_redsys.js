@@ -101,7 +101,7 @@ function base64UrlDecodeToString(value) {
 }
 
 function createMerchantParameters(params) {
-  return base64Encode(JSON.stringify(params));
+  return base64UrlEncode(JSON.stringify(params));
 }
 
 function decodeMerchantParameters(merchantParameters) {
@@ -129,7 +129,7 @@ function diversifyOperationKey(orderId, secretKey) {
 
 function signMerchantParameters(merchantParameters, orderId, secretKey) {
   const operationKey = diversifyOperationKey(orderId, secretKey);
-  return crypto.createHmac("sha256", operationKey).update(merchantParameters, "utf8").digest("base64");
+  return base64UrlEncode(crypto.createHmac("sha256", operationKey).update(merchantParameters, "utf8").digest());
 }
 
 function normalizeSignature(signature) {
@@ -248,22 +248,22 @@ function buildRedsysPayment(order, req) {
     .slice(0, 125);
 
   const params = {
-    Ds_Merchant_Amount: String(order.totalCents),
-    Ds_Merchant_Currency: CURRENCY_EUR,
-    Ds_Merchant_Order: order.orderId,
-    Ds_Merchant_MerchantCode: config.merchantCode,
-    Ds_Merchant_Terminal: config.terminal,
-    Ds_Merchant_TransactionType: TRANSACTION_AUTHORIZATION,
-    Ds_Merchant_MerchantURL: `${baseUrl}/api/redsys-notification`,
-    Ds_Merchant_UrlOK: `${baseUrl}/redsys-ok`,
-    Ds_Merchant_UrlKO: `${baseUrl}/redsys-ko`,
-    Ds_Merchant_ProductDescription: productDescription || "Pedido online Bolera Contrastes",
-    Ds_Merchant_Titular: cleanText(order.customer.name, 60),
-    Ds_Merchant_MerchantData: buildMerchantData(order),
+    DS_MERCHANT_AMOUNT: String(order.totalCents),
+    DS_MERCHANT_CURRENCY: CURRENCY_EUR,
+    DS_MERCHANT_ORDER: order.orderId,
+    DS_MERCHANT_MERCHANTCODE: config.merchantCode,
+    DS_MERCHANT_TERMINAL: config.terminal,
+    DS_MERCHANT_TRANSACTIONTYPE: TRANSACTION_AUTHORIZATION,
+    DS_MERCHANT_MERCHANTURL: `${baseUrl}/api/redsys-notification`,
+    DS_MERCHANT_URLOK: `${baseUrl}/redsys-ok`,
+    DS_MERCHANT_URLKO: `${baseUrl}/redsys-ko`,
+    DS_MERCHANT_PRODUCTDESCRIPTION: productDescription || "Pedido online Bolera Contrastes",
+    DS_MERCHANT_TITULAR: cleanText(order.customer.name, 60),
+    DS_MERCHANT_MERCHANTDATA: buildMerchantData(order),
   };
 
-  if (config.merchantName) params.Ds_Merchant_MerchantName = config.merchantName;
-  if (config.payMethods) params.Ds_Merchant_PayMethods = config.payMethods;
+  if (config.merchantName) params.DS_MERCHANT_MERCHANTNAME = config.merchantName;
+  if (config.payMethods) params.DS_MERCHANT_PAYMETHODS = config.payMethods;
 
   const merchantParameters = createMerchantParameters(params);
   const signature = signMerchantParameters(merchantParameters, order.orderId, config.secretKey);
