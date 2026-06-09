@@ -68,9 +68,9 @@ function getRedsysConfig() {
   const config = {
     merchantCode: cleanText(process.env.REDSYS_MERCHANT_CODE || "", 9),
     terminal: cleanText(process.env.REDSYS_TERMINAL || "1", 3),
-    secretKey: String(process.env.REDSYS_SECRET_KEY || ""),
+    secretKey: String(process.env.REDSYS_SECRET_KEY || "").trim(),
     merchantName: cleanText(process.env.REDSYS_MERCHANT_NAME || "Bolera Contrastes", 25),
-    payMethods: cleanText(process.env.REDSYS_PAY_METHODS || "", 16),
+    payMethods: cleanText(process.env.REDSYS_PAY_METHODS || "", 16).toUpperCase(),
     confirmationWebhookUrl: cleanText(process.env.REDSYS_CONFIRMATION_WEBHOOK_URL || "", 500),
     notificationEmail: cleanText(process.env.REDSYS_NOTIFICATION_EMAIL || "caguilellat14@gmail.com", 200),
     resendApiKey: String(process.env.RESEND_API_KEY || "").trim(),
@@ -156,9 +156,9 @@ function getParam(params, ...keys) {
 }
 
 function generateOrderId() {
-  const timePart = String(Date.now()).slice(-8);
+  const timePart = String(Date.now()).slice(-7);
   const randomPart = String(crypto.randomInt(0, 10000)).padStart(4, "0");
-  return `${timePart}${randomPart}`;
+  return `${crypto.randomInt(1, 10)}${timePart}${randomPart}`;
 }
 
 function validateAndPriceCart(rawCart) {
