@@ -5,8 +5,26 @@ function formatCartaPrice(value) {
   return `${Number(value).toFixed(2).replace('.', ',')} €`;
 }
 
+function submitRedsysForm(paymentUrl, fields) {
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = paymentUrl;
+  form.style.display = "none";
+  form.acceptCharset = "UTF-8";
+
+  Object.entries(fields || {}).forEach(([name, value]) => {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    input.value = value;
+    form.appendChild(input);
+  });
+
+  document.body.appendChild(form);
+  form.submit();
+}
+
 function Carta({ onNav, tweaks }) {
-  const I = window.BC_INFO;
   const ALL = window.BC_MENU;
   const CATS = window.BC_CATEGORIES;
   const ALLERGENS = window.BC_ALLERGENS;
@@ -21,6 +39,7 @@ function Carta({ onNav, tweaks }) {
   const [orderPhone, setOrderPhone] = useStateC("");
   const [pickupTime, setPickupTime] = useStateC("Lo antes posible");
   const [orderNotes, setOrderNotes] = useStateC("");
+  const [paymentStatus, setPaymentStatus] = useStateC({ type: "idle", message: "" });
 
   const filtered = useMemoC(() => {
     return ALL.filter((d) => {
@@ -82,34 +101,39 @@ function Carta({ onNav, tweaks }) {
 
   const clearCart = () => setCart({});
 
-  const orderMessage = useMemoC(() => {
-    const lines = [
-      "Hola Bolera Contrastes, quiero hacer un pedido para recoger:",
-      "",
-      `Nombre: ${orderName || "—"}`,
-      `Teléfono: ${orderPhone || "—"}`,
-      `Recogida: ${pickupTime}`,
-      "",
-      "Pedido:",
-      ...cartLines.map((line) => {
-        const subtotal = line.dish.price * line.qty;
-        return `• ${line.qty} x ${line.dish.name} — ${formatCartaPrice(subtotal)}`;
-      }),
-      "",
-      `Total aproximado: ${formatCartaPrice(cartTotal)}`,
-    ];
-    if (orderNotes.trim()) lines.push("", `Notas: ${orderNotes.trim()}`);
-    lines.push("", "¿Me lo confirmáis? Gracias.");
-    return lines.join("\n");
-  }, [cartLines, cartTotal, orderName, orderPhone, pickupTime, orderNotes]);
+  const canPayOrder = cartCount > 0 && orderName.trim().length >= 2 && orderPhone.trim().length >= 6 && paymentStatus.type !== "loading";
 
-  const canSendOrder = cartCount > 0 && orderName.trim().length >= 2 && orderPhone.trim().length >= 6;
-
-  const sendOrder = (event) => {
+  const sendOrder = async (event) => {
     event.preventDefault();
-    if (!canSendOrder) return;
-    const num = I.whatsapp.replace(/[^0-9]/g, "");
-    window.open(`https://wa.me/${num}?text=${encodeURIComponent(orderMessage)}`, "_blank");
+    if (!canPayOrder) return;
+
+    setPaymentStatus({ type: "loading", message: "Preparando pago seguro con Redsys…" });
+
+    try {
+      const response = await fetch("/api/redsys-create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cart: cartLines.map(({ dish, qty }) => ({ id: dish.id, qty })),
+          customer: { name: orderName, phone: orderPhone },
+          pickupTime,
+          notes: orderNotes,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok || !payload.paymentUrl || !payload.fields) {
+        throw new Error(payload.error || "No se ha podido iniciar el pago.");
+      }
+
+      setPaymentStatus({ type: "loading", message: "Redirigiendo a Redsys para pagar…" });
+      submitRedsysForm(payload.paymentUrl, payload.fields);
+    } catch (error) {
+      setPaymentStatus({
+        type: "error",
+        message: error.message || "No se ha podido preparar el pago. Inténtalo de nuevo.",
+      });
+    }
   };
 
   return (
@@ -121,7 +145,7 @@ function Carta({ onNav, tweaks }) {
           Pide online<br/><em>y recoge</em>.
         </h1>
         <p className="muted pretty" style={{ maxWidth: '52ch', marginTop: 14, fontSize: 17 }}>
-          Añade platos al carrito, dinos cuándo pasas a recogerlo y te abrimos WhatsApp con el pedido listo para enviar.
+          Añade platos al carrito, dinos cuándo pasas a recogerlo y paga con Redsys antes de enviar el pedido a cocina.
         </p>
       </section>
 
@@ -243,7 +267,7 @@ function Carta({ onNav, tweaks }) {
             <span className="eyebrow">Pedido para recoger</span>
             <h2 className="h-section" style={{ marginTop: 8 }}>Tu pedido</h2>
             <p className="muted pretty" style={{ marginTop: 10, maxWidth: '52ch' }}>
-              El pedido se envía por WhatsApp para que el local lo confirme. El pago se puede gestionar en barra o con el método que indiquéis al cliente.
+              El pedido se paga con Redsys. La compra solo queda confirmada cuando el banco autoriza el pago y Redsys avisa al local.
             </p>
           </div>
 
@@ -298,8 +322,13 @@ function Carta({ onNav, tweaks }) {
                 Notas
                 <textarea value={orderNotes} onChange={(e) => setOrderNotes(e.target.value)} placeholder="Sin cebolla, alérgenos, cambio de horario..." />
               </label>
-              <button className="btn btn-whatsapp btn-lg btn-block delivery-form__full" type="submit" disabled={!canSendOrder} style={{ opacity: canSendOrder ? 1 : 0.5 }}>
-                Enviar pedido por WhatsApp
+              {paymentStatus.message && (
+                <div className={`delivery-payment-status is-${paymentStatus.type} delivery-form__full`} role="status">
+                  {paymentStatus.message}
+                </div>
+              )}
+              <button className="btn btn-primary btn-lg btn-block delivery-form__full" type="submit" disabled={!canPayOrder} style={{ opacity: canPayOrder ? 1 : 0.5 }}>
+                {paymentStatus.type === "loading" ? "Preparando pago…" : "Pagar pedido con Redsys"}
               </button>
             </form>
           </div>

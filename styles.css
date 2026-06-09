@@ -846,6 +846,26 @@ input, textarea, select { font: inherit; color: inherit; }
 .delivery-form__full {
   grid-column: 1 / -1;
 }
+.delivery-payment-status {
+  padding: 12px 14px;
+  border-radius: var(--r-2);
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.delivery-payment-status.is-loading {
+  border-color: color-mix(in oklab, var(--accent) 28%, var(--line));
+  background: color-mix(in oklab, var(--accent-soft) 48%, var(--bg-elev));
+}
+.delivery-payment-status.is-error {
+  border-color: color-mix(in oklab, var(--accent) 45%, var(--line));
+  background: color-mix(in oklab, var(--accent) 12%, var(--bg-elev));
+  color: var(--accent);
+}
 @media (max-width: 880px) {
   .delivery-order {
     grid-template-columns: 1fr;
