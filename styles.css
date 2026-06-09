@@ -707,6 +707,158 @@ input, textarea, select { font: inherit; color: inherit; }
 .dish-card__price { font-family: var(--font-display); font-size: 20px; color: var(--ink); white-space: nowrap; }
 .dish-card__desc { font-size: 13px; color: var(--ink-soft); line-height: 1.45; flex: 1; }
 .dish-card__allergens { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+.dish-card__order {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--s-2);
+}
+.dish-card__qty,
+.delivery-cart__qty {
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--bg);
+}
+.dish-card__qty button,
+.delivery-cart__qty button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 700;
+}
+.dish-card__qty button:hover,
+.delivery-cart__qty button:hover {
+  background: var(--bg-sunken);
+}
+.dish-card__qty span,
+.delivery-cart__qty span {
+  min-width: 34px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.delivery-checkout {
+  margin-top: var(--s-8);
+  padding: var(--s-6);
+  border: 1px solid var(--line);
+  border-radius: var(--r-4);
+  background:
+    linear-gradient(135deg, color-mix(in oklab, var(--bg-elev) 86%, var(--accent-soft)), var(--bg-elev));
+  box-shadow: 0 18px 60px rgba(27, 24, 20, .08);
+}
+.delivery-order {
+  display: grid;
+  grid-template-columns: minmax(280px, .85fr) minmax(320px, 1.15fr);
+  gap: var(--s-5);
+  margin-top: var(--s-5);
+  align-items: start;
+}
+.delivery-cart,
+.delivery-form {
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--bg-elev);
+  padding: var(--s-5);
+}
+.delivery-cart {
+  display: grid;
+  gap: var(--s-3);
+}
+.delivery-cart__line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding-bottom: var(--s-3);
+  border-bottom: 1px solid var(--line);
+}
+.delivery-cart__line strong,
+.delivery-cart__line span {
+  display: block;
+}
+.delivery-cart__line span {
+  color: var(--ink-soft);
+  font-size: 13px;
+  margin-top: 3px;
+}
+.delivery-cart__total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border-radius: var(--r-3);
+  color: var(--accent-ink);
+  background: var(--ink);
+}
+.delivery-cart__total span {
+  color: color-mix(in oklab, var(--accent-ink) 72%, transparent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.delivery-cart__total strong {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 400;
+}
+.delivery-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-3);
+}
+.delivery-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.delivery-form input,
+.delivery-form select,
+.delivery-form textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  padding: 12px 14px;
+}
+.delivery-form textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+.delivery-form input:focus,
+.delivery-form select:focus,
+.delivery-form textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.delivery-form__full {
+  grid-column: 1 / -1;
+}
+@media (max-width: 880px) {
+  .delivery-order {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 560px) {
+  .delivery-checkout {
+    padding: var(--s-4);
+  }
+  .delivery-form {
+    grid-template-columns: 1fr;
+  }
+}
 
 /* Compact density: tighter card with photo as small thumb on side */
 .menu-grid[data-density="compact"] .dish-card {
@@ -875,7 +1027,7 @@ input, textarea, select { font: inherit; color: inherit; }
   margin-top: 4px;
 }
 
-/* ===== Puntos Contrastes (piloto local) ===== */
+/* ===== Plan de Fidelización (piloto local) ===== */
 .points-page {
   background:
     radial-gradient(circle at 8% 2%, color-mix(in oklab, var(--accent) 18%, transparent), transparent 28%),

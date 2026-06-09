@@ -1,4 +1,4 @@
-// Bolera Contrastes — Puntos Contrastes (piloto local)
+// Bolera Contrastes — Plan de Fidelización (piloto local)
 const { useEffect: useEffectP, useMemo: useMemoP, useRef: useRefP, useState: useStateP } = React;
 
 const BC_POINTS_STORAGE_KEY = "bc_points_contrastes_v1";
@@ -41,7 +41,7 @@ function formatPoints(value) {
   return `${new Intl.NumberFormat("es-ES", {
     minimumFractionDigits: Number.isInteger(amount) ? 0 : 1,
     maximumFractionDigits: 2,
-  }).format(amount)} puntos`;
+  }).format(amount)} duros`;
 }
 
 function formatEuros(value) {
@@ -90,7 +90,7 @@ function seedPointsStore() {
         customerId: customer.id,
         type: "recarga",
         amount: 32,
-        label: "Recarga 30 € + 2 puntos extra",
+        label: "Recarga 30 € + 2 duros extra",
         employee: "Barra",
         method: "Bizum confirmado",
         status: "confirmado",
@@ -149,7 +149,7 @@ function buildQrCells(seed) {
 }
 
 function customerQrPayload(customer) {
-  return customer ? `BCPUNTOS:${customer.id}` : "";
+  return customer ? `BCDUROS:${customer.id}` : "";
 }
 
 function customerShortCode(customer) {
@@ -158,11 +158,12 @@ function customerShortCode(customer) {
 
 function parseCustomerQrPayload(rawValue) {
   const value = String(rawValue || "").trim();
+  if (value.startsWith("BCDUROS:")) return value.replace("BCDUROS:", "");
   if (value.startsWith("BCPUNTOS:")) return value.replace("BCPUNTOS:", "");
   return value;
 }
 
-function Puntos({ initialView = "cliente", adminOnly = false }) {
+function Plan({ initialView = "cliente", adminOnly = false }) {
   const [store, setStore] = useStateP(loadPointsStore);
   const [view, setView] = useStateP(adminOnly ? "barra" : initialView);
   const [selectedCustomerId, setSelectedCustomerId] = useStateP(() => store.customers[0]?.id || "");
@@ -341,7 +342,7 @@ function Puntos({ initialView = "cliente", adminOnly = false }) {
       employee: "Barra",
       method: "QR / teléfono",
     });
-    showNotice(`${product.name} cobrado con puntos.`);
+    showNotice(`${product.name} cobrado con duros.`);
   }
 
   function manualAdjustment(event) {
@@ -407,13 +408,13 @@ function Puntos({ initialView = "cliente", adminOnly = false }) {
   }
 
   return (
-    <main className="points-page" data-screen-label="Puntos Contrastes">
+    <main className="points-page" data-screen-label="Plan de Fidelización">
       <section className="points-hero">
         <div className="bc-container points-hero__inner">
           <div>
             <span className="eyebrow">Piloto interno</span>
             <h1 className="points-hero__title">
-              Puntos Contrastes para pagar en barra.
+              Plan de Fidelización para pagar en barra.
             </h1>
             <p className="points-hero__copy pretty">
               Registro de clientes, saldo recargable, ofertas tipo Bizum, pagos con QR o teléfono e historial completo para controlar cada movimiento.
@@ -444,13 +445,13 @@ function Puntos({ initialView = "cliente", adminOnly = false }) {
         {notice && <div className="points-toast">{notice}</div>}
 
         {!adminOnly && (
-          <div className="points-tabs" role="tablist" aria-label="Vistas de Puntos Contrastes">
+          <div className="points-tabs" role="tablist" aria-label="Vistas de Plan de Fidelización">
             <button className={view === "cliente" ? "is-active" : ""} onClick={() => setView("cliente")}>Cliente</button>
             <button onClick={resetDemo}>Reiniciar demo</button>
           </div>
         )}
         {adminOnly && (
-          <div className="points-tabs" role="tablist" aria-label="Panel interno Puntos Contrastes">
+          <div className="points-tabs" role="tablist" aria-label="Panel interno Plan de Fidelización">
             <button className="is-active" type="button">Barra / Admin</button>
             <button onClick={resetDemo}>Reiniciar demo</button>
           </div>
@@ -497,7 +498,7 @@ function AdminLock({ adminPin, setAdminPin, onUnlock }) {
       <span className="eyebrow">Panel interno</span>
       <h2>Acceso barra</h2>
       <p>
-        Este panel permite recargar saldo, cobrar productos y modificar puntos. En el piloto usa el PIN <strong>1998</strong>.
+        Este panel permite recargar saldo, cobrar productos y modificar duros. En el piloto usa el PIN <strong>1998</strong>.
       </p>
       <form className="points-form" onSubmit={onUnlock}>
         <label>
@@ -767,7 +768,7 @@ function ClientPointsView({
             <div className="points-balance-card">
               <span>Saldo disponible</span>
               <strong>{formatPoints(customer.balance)}</strong>
-              <small>1 € = 1 punto. Saldo solo para Bolera Contrastes.</small>
+              <small>1 € = 1 duro. Saldo solo para Bolera Contrastes.</small>
             </div>
             <CustomerQr customer={customer} />
             <p className="points-help">En barra se escanea este QR o se busca tu teléfono.</p>
@@ -882,7 +883,7 @@ function BarPointsView({
             <div className="points-admin-section">
               <div className="points-section-title">
                 <h3>Cobrar producto</h3>
-                <span>Descuenta puntos del saldo</span>
+                <span>Descuenta duros del saldo</span>
               </div>
               <div className="points-products">
                 {BC_POINTS_PRODUCTS.map((product) => (
@@ -898,7 +899,7 @@ function BarPointsView({
             <form className="points-admin-section points-adjust" onSubmit={onAdjust}>
               <div className="points-section-title">
                 <h3>Ajuste manual</h3>
-                <span>Ejemplo: +5 o -2,5 puntos</span>
+                <span>Ejemplo: +5 o -2,5 duros</span>
               </div>
               <input
                 value={manualForm.amount}
@@ -955,4 +956,4 @@ function TransactionList({ transactions, showCustomer = false, customers = [] })
   );
 }
 
-window.Puntos = Puntos;
+window.Plan = Plan;

@@ -128,8 +128,8 @@ function App() {
       {page === 'carta' && <Carta onNav={handleNav} tweaks={t} />}
       {page === 'reservar' && <Reservar onNav={handleNav} />}
       {page === 'eventos' && <Eventos onNav={handleNav} />}
-      {page === 'puntos' && (
-        <Puntos
+      {page === 'duros' && (
+        <Plan
           onNav={handleNav}
           initialView={window.BC_POINTS_INITIAL_VIEW || "cliente"}
           adminOnly={Boolean(window.BC_POINTS_ADMIN_ONLY)}
@@ -198,7 +198,7 @@ function App() {
         <TweakButton label="Carta" onClick={() => handleNav('carta')} />
         <TweakButton label="Reservar" onClick={() => handleNav('reservar')} />
         <TweakButton label="Eventos" onClick={() => handleNav('eventos')} />
-        <TweakButton label="Puntos" onClick={() => handleNav('puntos')} />
+        <TweakButton label="Fidelización" onClick={() => handleNav('duros')} />
       </TweaksPanel>
     </React.Fragment>
   );
