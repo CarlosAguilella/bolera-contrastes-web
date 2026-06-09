@@ -10,8 +10,8 @@ Configúralas en Vercel → Project → Settings → Environment Variables:
 REDSYS_ENV=test
 REDSYS_PUBLIC_BASE_URL=https://bolera-contrastes-web.vercel.app
 REDSYS_MERCHANT_CODE=TU_FUC
-REDSYS_TERMINAL=001
-REDSYS_SECRET_KEY=TU_CLAVE_DE_FIRMA_DEL_TERMINAL
+REDSYS_TERMINAL=1
+REDSYS_SECRET_KEY=TU_CLAVE_SHA256_DEL_TERMINAL
 REDSYS_MERCHANT_NAME=Bolera Contrastes
 ```
 
@@ -31,6 +31,7 @@ REDSYS_CONFIRMATION_WEBHOOK_URL=https://tu-webhook-de-confirmacion
 ## Seguridad aplicada
 
 - El navegador nunca ve la clave secreta de Redsys.
+- Se usa la misma integración del proyecto anterior: `HMAC_SHA256_V1` con clave SHA256 del TPV.
 - El importe se recalcula en `/api/redsys-create-order`; no se acepta el total enviado por el cliente.
 - La confirmación real se hace en `/api/redsys-notification`, verificando `Ds_Signature`.
 - La pantalla `/redsys-ok` no confirma por sí sola el pedido; solo informa al cliente tras volver de Redsys.

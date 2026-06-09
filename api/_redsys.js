@@ -1,6 +1,6 @@
 const crypto = require("crypto");
 
-const SIGNATURE_VERSION = "HMAC_SHA512_V2";
+const SIGNATURE_VERSION = "HMAC_SHA256_V1";
 const CURRENCY_EUR = "978";
 const TRANSACTION_AUTHORIZATION = "0";
 
@@ -67,7 +67,7 @@ function getRedsysPaymentUrl() {
 function getRedsysConfig() {
   const config = {
     merchantCode: cleanText(process.env.REDSYS_MERCHANT_CODE || "", 9),
-    terminal: cleanText(process.env.REDSYS_TERMINAL || "001", 3).padStart(3, "0"),
+    terminal: cleanText(process.env.REDSYS_TERMINAL || "1", 3),
     secretKey: String(process.env.REDSYS_SECRET_KEY || ""),
     merchantName: cleanText(process.env.REDSYS_MERCHANT_NAME || "Bolera Contrastes", 25),
     payMethods: cleanText(process.env.REDSYS_PAY_METHODS || "", 16),
@@ -82,17 +82,13 @@ function getRedsysConfig() {
   return { config, missing };
 }
 
-function normalizeSecretKey(secretKey) {
-  return String(secretKey).slice(0, 16).padEnd(16, "0");
+function base64Encode(value) {
+  const buffer = Buffer.isBuffer(value) ? value : Buffer.from(String(value), "utf8");
+  return buffer.toString("base64");
 }
 
 function base64UrlEncode(value) {
-  const buffer = Buffer.isBuffer(value) ? value : Buffer.from(String(value), "utf8");
-  return buffer
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
+  return base64Encode(value).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
 function base64UrlDecodeToString(value) {
@@ -102,31 +98,45 @@ function base64UrlDecodeToString(value) {
 }
 
 function createMerchantParameters(params) {
-  return base64UrlEncode(JSON.stringify(params));
+  return base64Encode(JSON.stringify(params));
 }
 
 function decodeMerchantParameters(merchantParameters) {
   return JSON.parse(base64UrlDecodeToString(merchantParameters));
 }
 
+function decodeRedsysKey(secretKey) {
+  try {
+    return Buffer.from(String(secretKey).replace(/-/g, "+").replace(/_/g, "/"), "base64");
+  } catch (error) {
+    return Buffer.from(String(secretKey), "utf8");
+  }
+}
+
 function diversifyOperationKey(orderId, secretKey) {
-  const key = Buffer.from(normalizeSecretKey(secretKey), "utf8");
-  const iv = Buffer.alloc(16, 0);
-  const cipher = crypto.createCipheriv("aes-128-cbc", key, iv);
-  const encrypted = Buffer.concat([cipher.update(String(orderId), "utf8"), cipher.final()]);
-  return encrypted.toString("base64");
+  const key = decodeRedsysKey(secretKey);
+  const orderBuffer = Buffer.from(String(orderId), "utf8");
+  const padLength = (8 - (orderBuffer.length % 8)) % 8;
+  const paddedOrder = padLength ? Buffer.concat([orderBuffer, Buffer.alloc(padLength, 0)]) : orderBuffer;
+  const iv = Buffer.alloc(8, 0);
+  const cipher = crypto.createCipheriv("des-ede3-cbc", key, iv);
+  cipher.setAutoPadding(false);
+  return Buffer.concat([cipher.update(paddedOrder), cipher.final()]);
 }
 
 function signMerchantParameters(merchantParameters, orderId, secretKey) {
   const operationKey = diversifyOperationKey(orderId, secretKey);
-  const hmac = crypto.createHmac("sha512", operationKey).update(merchantParameters).digest();
-  return base64UrlEncode(hmac);
+  return crypto.createHmac("sha256", operationKey).update(merchantParameters, "utf8").digest("base64");
+}
+
+function normalizeSignature(signature) {
+  return String(signature || "").replace(/-/g, "+").replace(/_/g, "/").replace(/=+$/g, "");
 }
 
 function verifySignature(receivedSignature, merchantParameters, orderId, secretKey) {
   const expectedSignature = signMerchantParameters(merchantParameters, orderId, secretKey);
-  const received = Buffer.from(String(receivedSignature || ""), "utf8");
-  const expected = Buffer.from(expectedSignature, "utf8");
+  const received = Buffer.from(normalizeSignature(receivedSignature), "utf8");
+  const expected = Buffer.from(normalizeSignature(expectedSignature), "utf8");
   if (received.length !== expected.length) return false;
   return crypto.timingSafeEqual(received, expected);
 }
@@ -235,22 +245,22 @@ function buildRedsysPayment(order, req) {
     .slice(0, 125);
 
   const params = {
-    DS_MERCHANT_AMOUNT: String(order.totalCents),
-    DS_MERCHANT_ORDER: order.orderId,
-    DS_MERCHANT_MERCHANTCODE: config.merchantCode,
-    DS_MERCHANT_CURRENCY: CURRENCY_EUR,
-    DS_MERCHANT_TRANSACTIONTYPE: TRANSACTION_AUTHORIZATION,
-    DS_MERCHANT_TERMINAL: config.terminal,
-    DS_MERCHANT_MERCHANTURL: `${baseUrl}/api/redsys-notification`,
-    DS_MERCHANT_URLOK: `${baseUrl}/redsys-ok`,
-    DS_MERCHANT_URLKO: `${baseUrl}/redsys-ko`,
-    DS_MERCHANT_PRODUCTDESCRIPTION: productDescription || "Pedido online Bolera Contrastes",
-    DS_MERCHANT_TITULAR: cleanText(order.customer.name, 60),
-    DS_MERCHANT_MERCHANTDATA: buildMerchantData(order),
+    Ds_Merchant_Amount: String(order.totalCents),
+    Ds_Merchant_Currency: CURRENCY_EUR,
+    Ds_Merchant_Order: order.orderId,
+    Ds_Merchant_MerchantCode: config.merchantCode,
+    Ds_Merchant_Terminal: config.terminal,
+    Ds_Merchant_TransactionType: TRANSACTION_AUTHORIZATION,
+    Ds_Merchant_MerchantURL: `${baseUrl}/api/redsys-notification`,
+    Ds_Merchant_UrlOK: `${baseUrl}/redsys-ok`,
+    Ds_Merchant_UrlKO: `${baseUrl}/redsys-ko`,
+    Ds_Merchant_ProductDescription: productDescription || "Pedido online Bolera Contrastes",
+    Ds_Merchant_Titular: cleanText(order.customer.name, 60),
+    Ds_Merchant_MerchantData: buildMerchantData(order),
   };
 
-  if (config.merchantName) params.DS_MERCHANT_MERCHANTNAME = config.merchantName;
-  if (config.payMethods) params.DS_MERCHANT_PAYMETHODS = config.payMethods;
+  if (config.merchantName) params.Ds_Merchant_MerchantName = config.merchantName;
+  if (config.payMethods) params.Ds_Merchant_PayMethods = config.payMethods;
 
   const merchantParameters = createMerchantParameters(params);
   const signature = signMerchantParameters(merchantParameters, order.orderId, config.secretKey);

@@ -1,4 +1,5 @@
 const {
+  SIGNATURE_VERSION,
   buildWebhookPayload,
   decodeMerchantData,
   decodeMerchantParameters,
@@ -22,8 +23,13 @@ module.exports = async function handler(req, res) {
 
   try {
     const body = await readRequestBody(req);
+    const signatureVersion = body.Ds_SignatureVersion || body.DS_SIGNATUREVERSION;
     const merchantParameters = body.Ds_MerchantParameters || body.DS_MERCHANTPARAMETERS;
     const receivedSignature = body.Ds_Signature || body.DS_SIGNATURE;
+
+    if (signatureVersion && signatureVersion !== SIGNATURE_VERSION) {
+      return res.status(400).json({ ok: false, error: "Versión de firma Redsys no válida." });
+    }
 
     if (!merchantParameters || !receivedSignature) {
       return res.status(400).json({ ok: false, error: "Notificación Redsys incompleta." });
