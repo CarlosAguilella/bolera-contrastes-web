@@ -101,7 +101,7 @@ function base64UrlDecodeToString(value) {
 }
 
 function createMerchantParameters(params) {
-  return base64UrlEncode(JSON.stringify(params));
+  return base64Encode(JSON.stringify(params));
 }
 
 function decodeMerchantParameters(merchantParameters) {
