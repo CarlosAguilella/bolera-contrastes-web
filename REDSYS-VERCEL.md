@@ -20,13 +20,19 @@ Opcionales:
 ```txt
 REDSYS_PAY_METHODS=z
 REDSYS_CONFIRMATION_WEBHOOK_URL=https://tu-webhook-de-confirmacion
+REDSYS_NOTIFICATION_EMAIL=caguilellat14@gmail.com
+RESEND_API_KEY=re_xxxxxxxxx
+RESEND_FROM=Bolera Contrastes <pedidos@tudominio.com>
 ```
 
 - `REDSYS_ENV`: usa `test` para pruebas y `prod` cuando el banco active el TPV real.
 - `REDSYS_PAY_METHODS=z`: fuerza Bizum si tu banco lo tiene contratado en Redsys; déjalo vacío para mostrar los métodos contratados.
 - `REDSYS_CONFIRMATION_WEBHOOK_URL`: URL que recibirá los pedidos pagados y verificados para avisar al bar o conectarlo con otra herramienta.
+- `REDSYS_NOTIFICATION_EMAIL`: correo que recibirá el aviso cuando Redsys confirme un pago.
+- `RESEND_API_KEY`: clave API de Resend para enviar emails desde servidor.
+- `RESEND_FROM`: remitente verificado en Resend. Para producción conviene usar un dominio propio verificado.
 - El webhook debe deduplicar por `orderId`, porque Redsys puede reintentar una notificación si no recibe respuesta correcta.
-- Sin webhook, el pago se verifica en Vercel, pero el bar no recibe un aviso automático.
+- Sin webhook ni `RESEND_API_KEY`, el pago se verifica en Vercel, pero el bar no recibe un aviso automático.
 
 ## Seguridad aplicada
 
@@ -35,6 +41,8 @@ REDSYS_CONFIRMATION_WEBHOOK_URL=https://tu-webhook-de-confirmacion
 - El importe se recalcula en `/api/redsys-create-order`; no se acepta el total enviado por el cliente.
 - La confirmación real se hace en `/api/redsys-notification`, verificando `Ds_Signature`.
 - La pantalla `/redsys-ok` no confirma por sí sola el pedido; solo informa al cliente tras volver de Redsys.
+- El email solo se manda después de verificar firma y respuesta autorizada de Redsys.
+- El envío usa `Idempotency-Key` con el número de pedido para reducir duplicados si Redsys reintenta la notificación.
 - Si un webhook de confirmación falla, la API devuelve error para que Redsys pueda reintentar la notificación.
 
 ## Flujo

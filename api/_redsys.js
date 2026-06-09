@@ -72,6 +72,9 @@ function getRedsysConfig() {
     merchantName: cleanText(process.env.REDSYS_MERCHANT_NAME || "Bolera Contrastes", 25),
     payMethods: cleanText(process.env.REDSYS_PAY_METHODS || "", 16),
     confirmationWebhookUrl: cleanText(process.env.REDSYS_CONFIRMATION_WEBHOOK_URL || "", 500),
+    notificationEmail: cleanText(process.env.REDSYS_NOTIFICATION_EMAIL || "caguilellat14@gmail.com", 200),
+    resendApiKey: String(process.env.RESEND_API_KEY || "").trim(),
+    emailFrom: cleanText(process.env.RESEND_FROM || "Bolera Contrastes <onboarding@resend.dev>", 200),
   };
 
   const missing = [];
@@ -322,6 +325,132 @@ function buildWebhookPayload(params, merchantData, authorised) {
   };
 }
 
+function formatEuros(cents) {
+  const value = Number(cents || 0) / 100;
+  return `${value.toFixed(2).replace(".", ",")} €`;
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function getOrderLinesFromMerchantData(merchantData) {
+  if (!Array.isArray(merchantData?.items)) return [];
+  return merchantData.items
+    .map(([id, qty]) => {
+      const item = MENU_ITEMS[id];
+      if (!item) return null;
+      return {
+        id,
+        name: item.name,
+        qty: Number(qty || 0),
+        subtotalCents: item.priceCents * Number(qty || 0),
+      };
+    })
+    .filter(Boolean);
+}
+
+function buildPaidOrderEmail(payload) {
+  const merchantData = payload.merchantData || {};
+  const customer = merchantData.customer || {};
+  const lines = getOrderLinesFromMerchantData(merchantData);
+  const amount = formatEuros(payload.amountCents || merchantData.totalCents);
+  const itemText = lines.length
+    ? lines.map((line) => `- ${line.qty} x ${line.name} — ${formatEuros(line.subtotalCents)}`).join("\n")
+    : "- Sin detalle de artículos";
+  const safeRows = [
+    ["Pedido", payload.orderId],
+    ["Importe", amount],
+    ["Cliente", customer.name],
+    ["Teléfono", customer.phone],
+    ["Recogida", merchantData.pickupTime],
+    ["Autorización", payload.authorisationCode],
+    ["Respuesta Redsys", payload.response],
+  ];
+
+  const text = [
+    "Nuevo pedido pagado en Bolera Contrastes.",
+    "",
+    `Pedido: ${payload.orderId || "—"}`,
+    `Importe: ${amount}`,
+    `Cliente: ${customer.name || "—"}`,
+    `Teléfono: ${customer.phone || "—"}`,
+    `Recogida: ${merchantData.pickupTime || "—"}`,
+    "",
+    "Productos:",
+    itemText,
+    "",
+    `Notas: ${merchantData.notes || "—"}`,
+    `Autorización Redsys: ${payload.authorisationCode || "—"}`,
+    `Fecha: ${payload.receivedAt || new Date().toISOString()}`,
+  ].join("\n");
+
+  const htmlRows = safeRows
+    .map(([label, value]) => (
+      `<tr><td style="padding:8px 12px;color:#6b6259;border-bottom:1px solid #eee;">${escapeHtml(label)}</td>` +
+      `<td style="padding:8px 12px;border-bottom:1px solid #eee;"><strong>${escapeHtml(value || "—")}</strong></td></tr>`
+    ))
+    .join("");
+  const htmlItems = lines.length
+    ? lines.map((line) => `<li>${escapeHtml(line.qty)} x ${escapeHtml(line.name)} — ${escapeHtml(formatEuros(line.subtotalCents))}</li>`).join("")
+    : "<li>Sin detalle de artículos</li>";
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#1B1814;max-width:680px;">
+      <h1 style="margin:0 0 12px;">Pedido pagado</h1>
+      <p style="margin:0 0 18px;">Redsys ha confirmado un pago correcto para recogida en Bolera Contrastes.</p>
+      <table style="border-collapse:collapse;width:100%;background:#fff;border:1px solid #eee;border-radius:12px;overflow:hidden;">${htmlRows}</table>
+      <h2 style="font-size:18px;margin:22px 0 8px;">Productos</h2>
+      <ul>${htmlItems}</ul>
+      <h2 style="font-size:18px;margin:22px 0 8px;">Notas</h2>
+      <p>${escapeHtml(merchantData.notes || "—")}</p>
+    </div>
+  `;
+
+  return {
+    subject: `Pedido pagado #${payload.orderId || "—"} — ${amount}`,
+    text,
+    html,
+  };
+}
+
+async function sendPaidOrderEmail(config, payload) {
+  if (!config.resendApiKey) return { sent: false, reason: "missing RESEND_API_KEY" };
+  if (!config.notificationEmail) return { sent: false, reason: "missing REDSYS_NOTIFICATION_EMAIL" };
+
+  const email = buildPaidOrderEmail(payload);
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.resendApiKey}`,
+      "Content-Type": "application/json",
+      "Idempotency-Key": `bolera-redsys-${payload.orderId || "sin-pedido"}`,
+    },
+    body: JSON.stringify({
+      from: config.emailFrom,
+      to: config.notificationEmail,
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
+    }),
+  });
+
+  if (!response.ok) {
+    const details = await response.text().catch(() => "");
+    const error = new Error("Pago verificado, pero no se pudo enviar el email de aviso.");
+    error.statusCode = 502;
+    error.details = details.slice(0, 500);
+    throw error;
+  }
+
+  return { sent: true };
+}
+
 module.exports = {
   SIGNATURE_VERSION,
   buildRedsysPayment,
@@ -336,4 +465,5 @@ module.exports = {
   validateAndPriceCart,
   verifySignature,
   buildWebhookPayload,
+  sendPaidOrderEmail,
 };

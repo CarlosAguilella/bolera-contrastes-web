@@ -7,6 +7,7 @@ const {
   getRedsysConfig,
   isAuthorisedResponse,
   readRequestBody,
+  sendPaidOrderEmail,
   verifySignature,
 } = require("./_redsys");
 
@@ -61,6 +62,10 @@ module.exports = async function handler(req, res) {
       if (!webhookResponse.ok) {
         return res.status(502).json({ ok: false, error: "Pago verificado, pero falló la confirmación al local." });
       }
+    }
+
+    if (authorised) {
+      await sendPaidOrderEmail(config, payload);
     }
 
     return res.status(200).json({
