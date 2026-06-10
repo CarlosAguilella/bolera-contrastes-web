@@ -21,11 +21,59 @@
       <p class="muted pretty">
         Si no recibes confirmación en unos minutos, llama al 964 77 12 90 indicando el pedido y el importe.
       </p>
+      <div id="kitchen-whatsapp" style="display:none;margin-top:var(--s-5);padding:var(--s-4);border:1px solid var(--line);border-radius:var(--r-3);background:var(--bg-elev);">
+        <h2 style="font-family:var(--font-body);font-size:18px;margin:0 0 8px;">Enviar pedido a cocina</h2>
+        <p class="muted pretty" style="margin:0 0 12px;">
+          Si el aviso automático todavía no está conectado, usa este botón como respaldo para enviar el pedido pagado por WhatsApp al local.
+        </p>
+        <pre id="kitchen-summary" style="white-space:pre-wrap;margin:0 0 12px;padding:12px;border-radius:12px;background:var(--bg-sunken);font-family:var(--font-mono);font-size:12px;overflow:auto;"></pre>
+        <a id="kitchen-whatsapp-link" class="btn btn-primary" href="#" target="_blank" rel="noopener">Enviar por WhatsApp</a>
+      </div>
       <div style="display:flex;gap:var(--s-3);flex-wrap:wrap;margin-top:var(--s-5);">
         <a class="btn btn-primary" href="/">Volver a la web</a>
         <a class="btn btn-secondary" href="tel:+34964771290">Llamar al local</a>
       </div>
     </section>
   </main>
+  <script>
+    function formatEuros(value) {
+      return Number(value || 0).toFixed(2).replace(".", ",") + " €";
+    }
+
+    function buildKitchenMessage(order) {
+      var lines = Array.isArray(order.lines) ? order.lines : [];
+      var products = lines.length
+        ? lines.map(function(line) {
+            return "• " + line.qty + " x " + line.name + " — " + formatEuros(line.subtotal);
+          }).join("\n")
+        : "• Sin detalle de artículos";
+
+      return [
+        "🔔 Pedido pagado — Bolera Contrastes",
+        "",
+        "Pedido: #" + (order.orderId || "—"),
+        "Importe: " + formatEuros((order.totalCents || 0) / 100),
+        "Cliente: " + ((order.customer && order.customer.name) || "—"),
+        "Teléfono: " + ((order.customer && order.customer.phone) || "—"),
+        "Recogida: " + (order.pickupTime || "—"),
+        "",
+        "Productos:",
+        products,
+        "",
+        "Notas: " + (order.notes || "—")
+      ].join("\n");
+    }
+
+    try {
+      var raw = localStorage.getItem("bc-last-paid-order");
+      var order = raw ? JSON.parse(raw) : null;
+      if (order && order.lines && order.lines.length) {
+        var message = buildKitchenMessage(order);
+        document.getElementById("kitchen-summary").textContent = message;
+        document.getElementById("kitchen-whatsapp-link").href = "https://wa.me/34964771290?text=" + encodeURIComponent(message);
+        document.getElementById("kitchen-whatsapp").style.display = "block";
+      }
+    } catch (error) {}
+  </script>
 </body>
 </html>

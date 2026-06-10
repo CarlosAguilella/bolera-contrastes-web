@@ -7,6 +7,7 @@ const {
   getRedsysConfig,
   isAuthorisedResponse,
   readRequestBody,
+  sendKitchenWhatsApp,
   sendPaidOrderEmail,
   verifySignature,
 } = require("./_redsys");
@@ -66,6 +67,7 @@ module.exports = async function handler(req, res) {
 
     if (authorised) {
       await sendPaidOrderEmail(config, payload);
+      await sendKitchenWhatsApp(config, payload);
     }
 
     return res.status(200).json({

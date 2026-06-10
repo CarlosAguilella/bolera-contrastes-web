@@ -24,6 +24,21 @@ function submitRedsysForm(paymentUrl, fields) {
   form.submit();
 }
 
+function savePendingKitchenOrder(order) {
+  try {
+    const storageOrder = {
+      ...order,
+      savedAt: new Date().toISOString(),
+    };
+    localStorage.setItem("bc-last-paid-order", JSON.stringify(storageOrder));
+    if (order.orderId) {
+      localStorage.setItem(`bc-pending-order-${order.orderId}`, JSON.stringify(storageOrder));
+    }
+  } catch (error) {
+    // El pago no debe bloquearse si el navegador no permite localStorage.
+  }
+}
+
 function Carta({ onNav, tweaks }) {
   const ALL = window.BC_MENU;
   const CATS = window.BC_CATEGORIES;
@@ -127,6 +142,20 @@ function Carta({ onNav, tweaks }) {
       }
 
       setPaymentStatus({ type: "loading", message: "Redirigiendo a Redsys para pagar…" });
+      savePendingKitchenOrder({
+        orderId: payload.orderId,
+        totalCents: payload.totalCents,
+        customer: { name: orderName, phone: orderPhone },
+        pickupTime,
+        notes: orderNotes,
+        lines: cartLines.map(({ dish, qty }) => ({
+          id: dish.id,
+          name: dish.name,
+          qty,
+          unitPrice: dish.price,
+          subtotal: dish.price * qty,
+        })),
+      });
       submitRedsysForm(payload.paymentUrl, payload.fields);
     } catch (error) {
       setPaymentStatus({

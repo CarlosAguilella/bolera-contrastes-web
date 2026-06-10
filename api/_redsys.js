@@ -74,6 +74,10 @@ function getRedsysConfig() {
     notificationEmail: cleanText(process.env.REDSYS_NOTIFICATION_EMAIL || "caguilellat14@gmail.com", 200),
     resendApiKey: String(process.env.RESEND_API_KEY || "").trim(),
     emailFrom: cleanText(process.env.RESEND_FROM || "Bolera Contrastes <onboarding@resend.dev>", 200),
+    whatsappAccessToken: String(process.env.WHATSAPP_ACCESS_TOKEN || "").trim(),
+    whatsappPhoneNumberId: cleanText(process.env.WHATSAPP_PHONE_NUMBER_ID || "", 80),
+    whatsappKitchenTo: cleanText(process.env.WHATSAPP_KITCHEN_TO || "", 30).replace(/\D/g, ""),
+    whatsappGraphVersion: cleanText(process.env.WHATSAPP_GRAPH_VERSION || "v23.0", 20),
   };
 
   const missing = [];
@@ -409,6 +413,68 @@ function buildPaidOrderEmail(payload) {
   };
 }
 
+function buildKitchenOrderMessage(payload) {
+  const merchantData = payload.merchantData || {};
+  const customer = merchantData.customer || {};
+  const lines = getOrderLinesFromMerchantData(merchantData);
+  const amount = formatEuros(payload.amountCents || merchantData.totalCents);
+  const itemText = lines.length
+    ? lines.map((line) => `• ${line.qty} x ${line.name} — ${formatEuros(line.subtotalCents)}`).join("\n")
+    : "• Sin detalle de artículos";
+
+  return [
+    "🔔 Pedido pagado — Bolera Contrastes",
+    "",
+    `Pedido: #${payload.orderId || "—"}`,
+    `Importe: ${amount}`,
+    `Cliente: ${customer.name || "—"}`,
+    `Teléfono: ${customer.phone || "—"}`,
+    `Recogida: ${merchantData.pickupTime || "—"}`,
+    "",
+    "Productos:",
+    itemText,
+    "",
+    `Notas: ${merchantData.notes || "—"}`,
+    `Autorización Redsys: ${payload.authorisationCode || "—"}`,
+  ].join("\n").slice(0, 3900);
+}
+
+async function sendKitchenWhatsApp(config, payload) {
+  if (!config.whatsappAccessToken || !config.whatsappPhoneNumberId || !config.whatsappKitchenTo) {
+    return { sent: false, reason: "missing WhatsApp Cloud API config" };
+  }
+
+  const response = await fetch(
+    `https://graph.facebook.com/${config.whatsappGraphVersion}/${config.whatsappPhoneNumberId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.whatsappAccessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: config.whatsappKitchenTo,
+        type: "text",
+        text: {
+          preview_url: false,
+          body: buildKitchenOrderMessage(payload),
+        },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const details = await response.text().catch(() => "");
+    const error = new Error("Pago verificado, pero no se pudo enviar el WhatsApp a cocina.");
+    error.statusCode = 502;
+    error.details = details.slice(0, 500);
+    throw error;
+  }
+
+  return { sent: true };
+}
+
 async function sendPaidOrderEmail(config, payload) {
   if (!config.resendApiKey) return { sent: false, reason: "missing RESEND_API_KEY" };
   if (!config.notificationEmail) return { sent: false, reason: "missing REDSYS_NOTIFICATION_EMAIL" };
@@ -455,5 +521,6 @@ module.exports = {
   validateAndPriceCart,
   verifySignature,
   buildWebhookPayload,
+  sendKitchenWhatsApp,
   sendPaidOrderEmail,
 };
