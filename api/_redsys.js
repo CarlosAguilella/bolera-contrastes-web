@@ -1,6 +1,6 @@
 const crypto = require("crypto");
 
-const SIGNATURE_VERSION = "HMAC_SHA256_V1";
+const SIGNATURE_VERSION = "HMAC_SHA512_V2";
 const CURRENCY_EUR = "978";
 const TRANSACTION_AUTHORIZATION = "0";
 
@@ -101,35 +101,28 @@ function base64UrlDecodeToString(value) {
 }
 
 function createMerchantParameters(params) {
-  return base64Encode(JSON.stringify(params));
+  return base64UrlEncode(JSON.stringify(params));
 }
 
 function decodeMerchantParameters(merchantParameters) {
   return JSON.parse(base64UrlDecodeToString(merchantParameters));
 }
 
-function decodeRedsysKey(secretKey) {
-  try {
-    return Buffer.from(String(secretKey).replace(/-/g, "+").replace(/_/g, "/"), "base64");
-  } catch (error) {
-    return Buffer.from(String(secretKey), "utf8");
-  }
+function normalizeSecretKey(secretKey) {
+  return String(secretKey).slice(0, 16).padEnd(16, "0");
 }
 
 function diversifyOperationKey(orderId, secretKey) {
-  const key = decodeRedsysKey(secretKey);
-  const orderBuffer = Buffer.from(String(orderId), "utf8");
-  const padLength = (8 - (orderBuffer.length % 8)) % 8;
-  const paddedOrder = padLength ? Buffer.concat([orderBuffer, Buffer.alloc(padLength, 0)]) : orderBuffer;
-  const iv = Buffer.alloc(8, 0);
-  const cipher = crypto.createCipheriv("des-ede3-cbc", key, iv);
-  cipher.setAutoPadding(false);
-  return Buffer.concat([cipher.update(paddedOrder), cipher.final()]);
+  const key = Buffer.from(normalizeSecretKey(secretKey), "utf8");
+  const iv = Buffer.alloc(16, 0);
+  const cipher = crypto.createCipheriv("aes-128-cbc", key, iv);
+  const encrypted = Buffer.concat([cipher.update(String(orderId), "utf8"), cipher.final()]);
+  return encrypted.toString("base64");
 }
 
 function signMerchantParameters(merchantParameters, orderId, secretKey) {
   const operationKey = diversifyOperationKey(orderId, secretKey);
-  return base64UrlEncode(crypto.createHmac("sha256", operationKey).update(merchantParameters, "utf8").digest());
+  return base64UrlEncode(crypto.createHmac("sha512", operationKey).update(merchantParameters, "utf8").digest());
 }
 
 function normalizeSignature(signature) {
