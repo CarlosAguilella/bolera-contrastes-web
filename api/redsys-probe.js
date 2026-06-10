@@ -84,7 +84,7 @@ function looksMasked(value) {
   return /^[*.•·]+$/.test(String(value || "").trim());
 }
 
-async function tryVariant(variant, config) {
+async function tryVariant(variant, config, paymentUrl) {
   const params = buildParams({
     order: variant.order,
     merchantCode: config.merchantCode,
@@ -103,7 +103,8 @@ async function tryVariant(variant, config) {
     Ds_Signature: signature,
   });
 
-  const response = await fetch(config.paymentUrl, {
+  const response = await fetch(paymentUrl,
+  {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
@@ -146,11 +147,13 @@ module.exports = async function handler(req, res) {
   ];
 
   const results = [];
-  for (const variant of variants) {
-    try {
-      results.push(await tryVariant(variant, config));
-    } catch (error) {
-      results.push({ name: variant.name, error: String(error.message || error) });
+  for (const [targetEnvironment, paymentUrl] of Object.entries(REDSYS_URLS)) {
+    for (const variant of variants) {
+      try {
+        results.push({ targetEnvironment, ...(await tryVariant(variant, config, paymentUrl)) });
+      } catch (error) {
+        results.push({ targetEnvironment, name: variant.name, error: String(error.message || error) });
+      }
     }
   }
 
