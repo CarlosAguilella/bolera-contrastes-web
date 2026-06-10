@@ -18,7 +18,6 @@ REDSYS_MERCHANT_NAME=Bolera Contrastes
 Opcionales:
 
 ```txt
-REDSYS_PAY_METHODS=z
 REDSYS_CONFIRMATION_WEBHOOK_URL=https://tu-webhook-de-confirmacion
 REDSYS_NOTIFICATION_EMAIL=caguilellat14@gmail.com
 RESEND_API_KEY=re_xxxxxxxxx
@@ -26,7 +25,6 @@ RESEND_FROM=Bolera Contrastes <pedidos@tudominio.com>
 ```
 
 - `REDSYS_ENV`: usa `test` para pruebas y `prod` cuando el banco active el TPV real.
-- `REDSYS_PAY_METHODS=z`: fuerza Bizum si tu banco lo tiene contratado en Redsys; déjalo vacío para mostrar los métodos contratados.
 - `REDSYS_CONFIRMATION_WEBHOOK_URL`: URL que recibirá los pedidos pagados y verificados para avisar al bar o conectarlo con otra herramienta.
 - `REDSYS_NOTIFICATION_EMAIL`: correo que recibirá el aviso cuando Redsys confirme un pago.
 - `RESEND_API_KEY`: clave API de Resend para enviar emails desde servidor.

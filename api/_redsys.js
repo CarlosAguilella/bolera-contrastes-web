@@ -70,7 +70,6 @@ function getRedsysConfig() {
     terminal: cleanText(process.env.REDSYS_TERMINAL || "1", 3),
     secretKey: String(process.env.REDSYS_SECRET_KEY || "").trim(),
     merchantName: cleanText(process.env.REDSYS_MERCHANT_NAME || "Bolera Contrastes", 25),
-    payMethods: cleanText(process.env.REDSYS_PAY_METHODS || "", 16).toUpperCase(),
     confirmationWebhookUrl: cleanText(process.env.REDSYS_CONFIRMATION_WEBHOOK_URL || "", 500),
     notificationEmail: cleanText(process.env.REDSYS_NOTIFICATION_EMAIL || "caguilellat14@gmail.com", 200),
     resendApiKey: String(process.env.RESEND_API_KEY || "").trim(),
@@ -256,8 +255,6 @@ function buildRedsysPayment(order, req) {
   };
 
   if (config.merchantName) params.DS_MERCHANT_MERCHANTNAME = config.merchantName;
-  if (config.payMethods) params.DS_MERCHANT_PAYMETHODS = config.payMethods;
-
   const merchantParameters = createMerchantParameters(params);
   const signature = signMerchantParameters(merchantParameters, order.orderId, config.secretKey);
 
