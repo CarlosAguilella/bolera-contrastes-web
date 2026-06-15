@@ -1,6 +1,6 @@
 const crypto = require("crypto");
 
-const SIGNATURE_VERSION = "HMAC_SHA512_V2";
+const SIGNATURE_VERSION = "HMAC_SHA256_V1";
 const CURRENCY_EUR = "978";
 const TRANSACTION_AUTHORIZATION = "0";
 const DELIVERY_FEE_CENTS = 250;
@@ -170,20 +170,32 @@ function decodeMerchantParameters(merchantParameters) {
 }
 
 function normalizeSecretKey(secretKey) {
-  return String(secretKey).slice(0, 16).padEnd(16, "0");
+  const decoded = Buffer.from(String(secretKey || "").trim(), "base64");
+  if (decoded.length === 24) return decoded;
+
+  const raw = Buffer.from(String(secretKey || ""), "utf8");
+  if (raw.length >= 24) return raw.subarray(0, 24);
+  return Buffer.concat([raw, Buffer.alloc(24 - raw.length, 0)]);
+}
+
+function zeroPadOrderId(orderId) {
+  const order = Buffer.from(String(orderId), "utf8");
+  const remainder = order.length % 8;
+  if (remainder === 0) return order;
+  return Buffer.concat([order, Buffer.alloc(8 - remainder, 0)]);
 }
 
 function diversifyOperationKey(orderId, secretKey) {
-  const key = Buffer.from(normalizeSecretKey(secretKey), "utf8");
-  const iv = Buffer.alloc(16, 0);
-  const cipher = crypto.createCipheriv("aes-128-cbc", key, iv);
-  const encrypted = Buffer.concat([cipher.update(String(orderId), "utf8"), cipher.final()]);
-  return encrypted.toString("base64");
+  const key = normalizeSecretKey(secretKey);
+  const iv = Buffer.alloc(8, 0);
+  const cipher = crypto.createCipheriv("des-ede3-cbc", key, iv);
+  cipher.setAutoPadding(false);
+  return Buffer.concat([cipher.update(zeroPadOrderId(orderId)), cipher.final()]);
 }
 
 function signMerchantParameters(merchantParameters, orderId, secretKey) {
   const operationKey = diversifyOperationKey(orderId, secretKey);
-  return base64UrlEncode(crypto.createHmac("sha512", operationKey).update(merchantParameters, "utf8").digest());
+  return base64UrlEncode(crypto.createHmac("sha256", operationKey).update(merchantParameters, "utf8").digest());
 }
 
 function normalizeSignature(signature) {

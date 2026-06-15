@@ -11,9 +11,9 @@ REDSYS_ENV=test
 DELIVERY_PAYMENT_MODE=auto
 REDSYS_PRODUCTION_READY=false
 REDSYS_PUBLIC_BASE_URL=https://bolera-contrastes-web.vercel.app
-REDSYS_MERCHANT_CODE=TU_FUC
+REDSYS_MERCHANT_CODE=TU_CODIGO_DE_COMERCIO
 REDSYS_TERMINAL=1
-REDSYS_SECRET_KEY=TU_CLAVE_DE_FIRMA_DEL_TERMINAL
+REDSYS_SECRET_KEY=TU_CLAVE_SHA256_DEL_TERMINAL
 REDSYS_MERCHANT_NAME=Bolera Contrastes
 ```
 
@@ -30,7 +30,7 @@ WHATSAPP_KITCHEN_TO=34600000000
 WHATSAPP_GRAPH_VERSION=v23.0
 ```
 
-- `REDSYS_ENV`: usa `test` para pruebas y `prod` cuando el banco active el TPV real.
+- `REDSYS_ENV`: usa `test` para los datos de pruebas de Sabadell/Redsys y `prod` cuando el banco active el TPV real.
 - `DELIVERY_PAYMENT_MODE`: usa `auto` por seguridad, `redsys` para forzar TPV real o `demo` para flujo visual sin banco.
 - `REDSYS_PRODUCTION_READY`: debe estar en `true` para enviar clientes a Redsys producción. Si `REDSYS_ENV=prod` y no está en `true`, el sistema muestra pedido pendiente/no cobrado para evitar errores públicos como `SIS0042`.
 - `REDSYS_CONFIRMATION_WEBHOOK_URL`: URL que recibirá los pedidos pagados y verificados para avisar al bar o conectarlo con otra herramienta.
@@ -48,7 +48,7 @@ WHATSAPP_GRAPH_VERSION=v23.0
 ## Seguridad aplicada
 
 - El navegador nunca ve la clave secreta de Redsys.
-- Se usa la integración oficial actual de Redsys: `HMAC_SHA512_V2` con firma AES/HMAC SHA-512.
+- Se usa la integración clásica de Redsys para clave SHA256: `HMAC_SHA256_V1`, 3DES sobre número de pedido y HMAC SHA-256.
 - El importe se recalcula en `/api/redsys-create-order`; no se acepta el total enviado por el cliente.
 - El servidor valida contacto, método de entrega, dirección cuando hay domicilio, método de pago, cantidades, subtotal, gastos de entrega y total final.
 - La confirmación real se hace en `/api/redsys-notification`, verificando `Ds_Signature`.
