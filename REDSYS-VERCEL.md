@@ -8,7 +8,8 @@ Configúralas en Vercel → Project → Settings → Environment Variables:
 
 ```txt
 REDSYS_ENV=test
-DELIVERY_PAYMENT_MODE=redsys
+DELIVERY_PAYMENT_MODE=auto
+REDSYS_PRODUCTION_READY=false
 REDSYS_PUBLIC_BASE_URL=https://bolera-contrastes-web.vercel.app
 REDSYS_MERCHANT_CODE=TU_FUC
 REDSYS_TERMINAL=1
@@ -30,7 +31,8 @@ WHATSAPP_GRAPH_VERSION=v23.0
 ```
 
 - `REDSYS_ENV`: usa `test` para pruebas y `prod` cuando el banco active el TPV real.
-- `DELIVERY_PAYMENT_MODE`: usa `redsys` para pago real, `demo` para flujo visual sin banco o `auto` para usar demo solo si faltan credenciales Redsys.
+- `DELIVERY_PAYMENT_MODE`: usa `auto` por seguridad, `redsys` para forzar TPV real o `demo` para flujo visual sin banco.
+- `REDSYS_PRODUCTION_READY`: debe estar en `true` para enviar clientes a Redsys producción. Si `REDSYS_ENV=prod` y no está en `true`, el sistema muestra pedido pendiente/no cobrado para evitar errores públicos como `SIS0042`.
 - `REDSYS_CONFIRMATION_WEBHOOK_URL`: URL que recibirá los pedidos pagados y verificados para avisar al bar o conectarlo con otra herramienta.
 - `REDSYS_NOTIFICATION_EMAIL`: correo que recibirá el aviso cuando Redsys confirme un pago.
 - `RESEND_API_KEY`: clave API de Resend para enviar emails desde servidor.

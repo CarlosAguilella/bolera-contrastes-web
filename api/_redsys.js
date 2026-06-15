@@ -327,16 +327,23 @@ function buildDemoPayment(order, req) {
   return {
     provider: "demo",
     status: "demo",
-    redirectUrl: `${baseUrl}/redsys-ok?demo=1&order=${encodeURIComponent(order.orderId)}`,
+    redirectUrl: `${baseUrl}/pedido-pendiente?demo=1&order=${encodeURIComponent(order.orderId)}`,
     fields: null,
     paymentUrl: null,
   };
 }
 
 function getDeliveryPaymentMode(missing) {
-  const mode = cleanText(process.env.DELIVERY_PAYMENT_MODE || "redsys", 20).toLowerCase();
+  const mode = cleanText(process.env.DELIVERY_PAYMENT_MODE || "auto", 20).toLowerCase();
+  const environment = String(process.env.REDSYS_ENV || "test").toLowerCase() === "prod" ? "prod" : "test";
+  const productionReady = String(process.env.REDSYS_PRODUCTION_READY || "").toLowerCase() === "true";
+
   if (mode === "demo") return "demo";
+  if (environment === "prod" && !productionReady) return "demo";
   if (mode === "auto" && missing.length) return "demo";
+  if (mode === "redsys") return "redsys";
+  if (mode === "auto") return "redsys";
+
   return "redsys";
 }
 

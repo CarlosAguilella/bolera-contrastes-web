@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta name="theme-color" content="#C8552B"/>
+  <title>Pedido pendiente — Bolera Contrastes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300..700&display=swap"/>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+  <main class="bc-container" style="min-height:100vh;display:grid;place-items:center;padding-top:var(--s-7);padding-bottom:var(--s-7);">
+    <section class="delivery-checkout" style="max-width:760px;margin:0;">
+      <span class="eyebrow">Pedido online</span>
+      <h1 class="h-section" style="margin-top:10px;">Pedido pendiente de confirmación</h1>
+      <p class="muted pretty" style="font-size:18px;max-width:58ch;">
+        El pago online real no está activo ahora mismo. No se ha cobrado ningún importe.
+      </p>
+      <p class="muted pretty">
+        Para no perder el pedido, envíalo por WhatsApp al local y te confirmarán disponibilidad, hora y forma de pago.
+      </p>
+
+      <div id="pending-order" style="display:none;margin-top:var(--s-5);padding:var(--s-4);border:1px solid var(--line);border-radius:var(--r-3);background:var(--bg-elev);">
+        <h2 style="font-family:var(--font-body);font-size:18px;margin:0 0 8px;">Resumen para enviar</h2>
+        <pre id="pending-summary" style="white-space:pre-wrap;margin:0 0 12px;padding:12px;border-radius:12px;background:var(--bg-sunken);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;overflow:auto;"></pre>
+        <a id="pending-whatsapp-link" class="btn btn-primary" href="#" target="_blank" rel="noopener">Enviar pedido por WhatsApp</a>
+      </div>
+
+      <div style="display:flex;gap:var(--s-3);flex-wrap:wrap;margin-top:var(--s-5);">
+        <a class="btn btn-secondary" href="/carta">Volver al pedido</a>
+        <a class="btn btn-secondary" href="tel:+34964771290">Llamar al local</a>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    function formatEuros(value) {
+      return Number(value || 0).toFixed(2).replace(".", ",") + " €";
+    }
+
+    function buildPendingMessage(order) {
+      var lines = Array.isArray(order.lines) ? order.lines : [];
+      var delivery = order.delivery || {};
+      var isDelivery = delivery.method === "delivery";
+      var products = lines.length
+        ? lines.map(function(line) {
+            var amount = line.subtotalCents ? line.subtotalCents / 100 : line.subtotal;
+            return "• " + line.qty + " x " + line.name + " — " + formatEuros(amount);
+          }).join("\n")
+        : "• Sin detalle de artículos";
+
+      return [
+        "🧾 Pedido pendiente — Bolera Contrastes",
+        "",
+        "IMPORTANTE: no está pagado online.",
+        "",
+        "Pedido: #" + (order.orderId || "—"),
+        "Importe previsto: " + formatEuros((order.totalCents || 0) / 100),
+        "Cliente: " + ((order.customer && order.customer.name) || "—"),
+        "Teléfono: " + ((order.customer && order.customer.phone) || "—"),
+        "Email: " + ((order.customer && order.customer.email) || "—"),
+        "Entrega: " + (isDelivery ? "Domicilio" : "Recogida en local"),
+        "Detalle entrega: " + (isDelivery ? (delivery.address || "—") : (delivery.pickupTime || "Lo antes posible")),
+        "",
+        "Productos:",
+        products,
+        "",
+        "Notas: " + (order.notes || "—"),
+        "",
+        "¿Me lo confirmáis?"
+      ].join("\n");
+    }
+
+    try {
+      var raw = localStorage.getItem("bc-last-paid-order");
+      var order = raw ? JSON.parse(raw) : null;
+      if (order && order.lines && order.lines.length) {
+        var message = buildPendingMessage(order);
+        document.getElementById("pending-summary").textContent = message;
+        document.getElementById("pending-whatsapp-link").href = "https://wa.me/34964771290?text=" + encodeURIComponent(message);
+        document.getElementById("pending-order").style.display = "block";
+      }
+    } catch (error) {}
+  </script>
+</body>
+</html>
