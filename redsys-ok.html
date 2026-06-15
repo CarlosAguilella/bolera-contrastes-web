@@ -16,7 +16,7 @@
       <span class="eyebrow">Pedido online</span>
       <h1 class="h-section" style="margin-top:10px;">Pago recibido</h1>
       <p class="muted pretty" style="font-size:18px;max-width:58ch;">
-        Redsys ha terminado el proceso de pago. El pedido queda confirmado cuando el banco envía la notificación segura al local.
+        El pago ha terminado correctamente. El pedido queda confirmado cuando el banco envía la notificación segura al local.
       </p>
       <p class="muted pretty">
         Si no recibes confirmación en unos minutos, llama al 964 77 12 90 indicando el pedido y el importe.
@@ -30,7 +30,7 @@
         <a id="kitchen-whatsapp-link" class="btn btn-primary" href="#" target="_blank" rel="noopener">Enviar por WhatsApp</a>
       </div>
       <div style="display:flex;gap:var(--s-3);flex-wrap:wrap;margin-top:var(--s-5);">
-        <a class="btn btn-primary" href="/">Volver a la web</a>
+        <a class="btn btn-primary" href="/carta">Volver a la carta</a>
         <a class="btn btn-secondary" href="tel:+34964771290">Llamar al local</a>
       </div>
     </section>
@@ -42,9 +42,14 @@
 
     function buildKitchenMessage(order) {
       var lines = Array.isArray(order.lines) ? order.lines : [];
+      var delivery = order.delivery || {};
+      var isDelivery = delivery.method === "delivery";
+      var subtotal = order.subtotalCents ? formatEuros(order.subtotalCents / 100) : "—";
+      var deliveryFee = order.deliveryFeeCents ? formatEuros(order.deliveryFeeCents / 100) : "Gratis";
       var products = lines.length
         ? lines.map(function(line) {
-            return "• " + line.qty + " x " + line.name + " — " + formatEuros(line.subtotal);
+            var amount = line.subtotalCents ? line.subtotalCents / 100 : line.subtotal;
+            return "• " + line.qty + " x " + line.name + " — " + formatEuros(amount);
           }).join("\n")
         : "• Sin detalle de artículos";
 
@@ -53,9 +58,13 @@
         "",
         "Pedido: #" + (order.orderId || "—"),
         "Importe: " + formatEuros((order.totalCents || 0) / 100),
+        "Subtotal: " + subtotal,
+        "Gastos entrega: " + deliveryFee,
         "Cliente: " + ((order.customer && order.customer.name) || "—"),
         "Teléfono: " + ((order.customer && order.customer.phone) || "—"),
-        "Recogida: " + (order.pickupTime || "—"),
+        "Email: " + ((order.customer && order.customer.email) || "—"),
+        "Entrega: " + (isDelivery ? "Domicilio" : "Recogida en local"),
+        "Detalle entrega: " + (isDelivery ? (delivery.address || "—") : (delivery.pickupTime || "Lo antes posible")),
         "",
         "Productos:",
         products,
@@ -72,6 +81,7 @@
         document.getElementById("kitchen-summary").textContent = message;
         document.getElementById("kitchen-whatsapp-link").href = "https://wa.me/34964771290?text=" + encodeURIComponent(message);
         document.getElementById("kitchen-whatsapp").style.display = "block";
+        localStorage.removeItem("bc-delivery-cart");
       }
     } catch (error) {}
   </script>

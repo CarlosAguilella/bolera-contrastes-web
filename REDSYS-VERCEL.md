@@ -8,6 +8,7 @@ Configúralas en Vercel → Project → Settings → Environment Variables:
 
 ```txt
 REDSYS_ENV=test
+DELIVERY_PAYMENT_MODE=redsys
 REDSYS_PUBLIC_BASE_URL=https://bolera-contrastes-web.vercel.app
 REDSYS_MERCHANT_CODE=TU_FUC
 REDSYS_TERMINAL=1
@@ -29,6 +30,7 @@ WHATSAPP_GRAPH_VERSION=v23.0
 ```
 
 - `REDSYS_ENV`: usa `test` para pruebas y `prod` cuando el banco active el TPV real.
+- `DELIVERY_PAYMENT_MODE`: usa `redsys` para pago real, `demo` para flujo visual sin banco o `auto` para usar demo solo si faltan credenciales Redsys.
 - `REDSYS_CONFIRMATION_WEBHOOK_URL`: URL que recibirá los pedidos pagados y verificados para avisar al bar o conectarlo con otra herramienta.
 - `REDSYS_NOTIFICATION_EMAIL`: correo que recibirá el aviso cuando Redsys confirme un pago.
 - `RESEND_API_KEY`: clave API de Resend para enviar emails desde servidor.
@@ -46,6 +48,7 @@ WHATSAPP_GRAPH_VERSION=v23.0
 - El navegador nunca ve la clave secreta de Redsys.
 - Se usa la integración oficial actual de Redsys: `HMAC_SHA512_V2` con firma AES/HMAC SHA-512.
 - El importe se recalcula en `/api/redsys-create-order`; no se acepta el total enviado por el cliente.
+- El servidor valida contacto, método de entrega, dirección cuando hay domicilio, método de pago, cantidades, subtotal, gastos de entrega y total final.
 - La confirmación real se hace en `/api/redsys-notification`, verificando `Ds_Signature`.
 - La pantalla `/redsys-ok` no confirma por sí sola el pedido; solo informa al cliente tras volver de Redsys.
 - El email solo se manda después de verificar firma y respuesta autorizada de Redsys.
@@ -59,11 +62,11 @@ La página `/redsys-ok` muestra un botón de WhatsApp con el pedido guardado en 
 
 ## Flujo
 
-1. El cliente añade productos y pulsa `Pagar pedido con Redsys`.
-2. `/api/redsys-create-order` valida carrito, calcula total y firma la operación.
-3. El cliente paga en Redsys.
+1. El cliente añade productos y completa contacto, entrega y pago.
+2. `/api/redsys-create-order` valida el pedido, recalcula subtotal, gastos y total, y firma la operación.
+3. El cliente paga en Redsys en la misma pestaña, sin popups.
 4. Redsys llama a `/api/redsys-notification`.
-5. Si la firma y el código de respuesta son correctos, se envía el pedido al webhook de confirmación.
+5. Si la firma y el código de respuesta son correctos, se avisa al local por webhook, email o WhatsApp si están configurados.
 
 ## Documentación oficial
 

@@ -3,6 +3,9 @@ const crypto = require("crypto");
 const SIGNATURE_VERSION = "HMAC_SHA512_V2";
 const CURRENCY_EUR = "978";
 const TRANSACTION_AUTHORIZATION = "0";
+const DELIVERY_FEE_CENTS = 250;
+const DELIVERY_METHODS = new Set(["pickup", "delivery"]);
+const PAYMENT_METHODS = new Set(["redsys"]);
 
 const REDSYS_URLS = {
   test: "https://sis-t.redsys.es:25443/sis/realizarPago",
@@ -49,6 +52,61 @@ function cleanText(value, maxLength = 160) {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, maxLength);
+}
+
+function isValidEmail(value) {
+  const email = cleanText(value, 200);
+  if (!email) return true;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function validateCustomer(rawCustomer) {
+  const customer = {
+    name: cleanText(rawCustomer?.name, 80),
+    phone: cleanText(rawCustomer?.phone, 30),
+    email: cleanText(rawCustomer?.email, 200),
+  };
+
+  if (customer.name.length < 2 || customer.phone.replace(/\D/g, "").length < 6) {
+    throw Object.assign(new Error("Indica nombre y teléfono para preparar el pedido."), { statusCode: 400 });
+  }
+
+  if (!isValidEmail(customer.email)) {
+    throw Object.assign(new Error("El email no tiene un formato válido."), { statusCode: 400 });
+  }
+
+  return customer;
+}
+
+function validateDelivery(rawDelivery) {
+  const method = cleanText(rawDelivery?.method || "pickup", 20);
+  if (!DELIVERY_METHODS.has(method)) {
+    throw Object.assign(new Error("El método de entrega no es válido."), { statusCode: 400 });
+  }
+
+  const delivery = {
+    method,
+    address: cleanText(rawDelivery?.address || "", 240),
+    pickupTime: cleanText(rawDelivery?.pickupTime || "Lo antes posible", 40),
+  };
+
+  if (delivery.method === "delivery" && delivery.address.length < 8) {
+    throw Object.assign(new Error("Indica una dirección completa para entrega a domicilio."), { statusCode: 400 });
+  }
+
+  if (delivery.method === "pickup") {
+    delivery.address = "";
+  }
+
+  return delivery;
+}
+
+function validatePaymentMethod(value) {
+  const paymentMethod = cleanText(value || "redsys", 20);
+  if (!PAYMENT_METHODS.has(paymentMethod)) {
+    throw Object.assign(new Error("El método de pago no es válido."), { statusCode: 400 });
+  }
+  return paymentMethod;
 }
 
 function getBaseUrl(req) {
@@ -157,7 +215,7 @@ function generateOrderId() {
   return `${crypto.randomInt(1, 10)}${timePart}${randomPart}`;
 }
 
-function validateAndPriceCart(rawCart) {
+function validateAndPriceCart(rawCart, deliveryMethod = "pickup") {
   if (!Array.isArray(rawCart) || rawCart.length === 0) {
     throw Object.assign(new Error("El carrito está vacío."), { statusCode: 400 });
   }
@@ -190,7 +248,9 @@ function validateAndPriceCart(rawCart) {
       subtotalCents: item.priceCents * qty,
     };
   });
-  const totalCents = lines.reduce((sum, line) => sum + line.subtotalCents, 0);
+  const subtotalCents = lines.reduce((sum, line) => sum + line.subtotalCents, 0);
+  const deliveryFeeCents = deliveryMethod === "delivery" && subtotalCents > 0 ? DELIVERY_FEE_CENTS : 0;
+  const totalCents = subtotalCents + deliveryFeeCents;
 
   if (totalCents < 100) {
     throw Object.assign(new Error("El importe mínimo del pedido es 1 €."), { statusCode: 400 });
@@ -199,18 +259,29 @@ function validateAndPriceCart(rawCart) {
     throw Object.assign(new Error("El importe máximo por pedido online es 500 €."), { statusCode: 400 });
   }
 
-  return { lines, totalCents };
+  return { lines, subtotalCents, deliveryFeeCents, totalCents };
 }
 
 function buildMerchantData(order) {
   const compact = {
-    v: 1,
-    orderId: order.orderId,
-    totalCents: order.totalCents,
-    customer: order.customer,
-    pickupTime: order.pickupTime,
-    notes: order.notes,
-    items: order.lines.map((line) => [line.id, line.qty]),
+    v: 2,
+    o: order.orderId,
+    tc: order.totalCents,
+    sc: order.subtotalCents,
+    df: order.deliveryFeeCents,
+    c: {
+      n: cleanText(order.customer.name, 60),
+      p: cleanText(order.customer.phone, 24),
+      e: cleanText(order.customer.email, 120),
+    },
+    d: {
+      m: order.delivery.method,
+      a: cleanText(order.delivery.address, 140),
+      t: cleanText(order.delivery.pickupTime, 40),
+    },
+    pm: order.paymentMethod,
+    n: cleanText(order.notes, 160),
+    i: order.lines.map((line) => [line.id, line.qty]),
   };
   const encoded = base64UrlEncode(JSON.stringify(compact));
   if (encoded.length > 1024) {
@@ -222,10 +293,51 @@ function buildMerchantData(order) {
 function decodeMerchantData(value) {
   if (!value) return null;
   try {
-    return JSON.parse(base64UrlDecodeToString(value));
+    const decoded = JSON.parse(base64UrlDecodeToString(value));
+    if (decoded?.v === 2) {
+      return {
+        v: 2,
+        orderId: decoded.o,
+        totalCents: decoded.tc,
+        subtotalCents: decoded.sc,
+        deliveryFeeCents: decoded.df,
+        customer: {
+          name: decoded.c?.n || "",
+          phone: decoded.c?.p || "",
+          email: decoded.c?.e || "",
+        },
+        delivery: {
+          method: decoded.d?.m || "pickup",
+          address: decoded.d?.a || "",
+          pickupTime: decoded.d?.t || "Lo antes posible",
+        },
+        paymentMethod: decoded.pm || "redsys",
+        notes: decoded.n || "",
+        items: decoded.i || [],
+      };
+    }
+    return decoded;
   } catch (error) {
     return null;
   }
+}
+
+function buildDemoPayment(order, req) {
+  const baseUrl = getBaseUrl(req);
+  return {
+    provider: "demo",
+    status: "demo",
+    redirectUrl: `${baseUrl}/redsys-ok?demo=1&order=${encodeURIComponent(order.orderId)}`,
+    fields: null,
+    paymentUrl: null,
+  };
+}
+
+function getDeliveryPaymentMode(missing) {
+  const mode = cleanText(process.env.DELIVERY_PAYMENT_MODE || "redsys", 20).toLowerCase();
+  if (mode === "demo") return "demo";
+  if (mode === "auto" && missing.length) return "demo";
+  return "redsys";
 }
 
 function buildRedsysPayment(order, req) {
@@ -263,6 +375,7 @@ function buildRedsysPayment(order, req) {
   const signature = signMerchantParameters(merchantParameters, order.orderId, config.secretKey);
 
   return {
+    provider: "redsys",
     paymentUrl: getRedsysPaymentUrl(),
     fields: {
       Ds_SignatureVersion: SIGNATURE_VERSION,
@@ -270,6 +383,13 @@ function buildRedsysPayment(order, req) {
       Ds_Signature: signature,
     },
   };
+}
+
+function buildOrderPayment(order, req) {
+  const { missing } = getRedsysConfig();
+  const mode = getDeliveryPaymentMode(missing);
+  if (mode === "demo") return buildDemoPayment(order, req);
+  return buildRedsysPayment(order, req);
 }
 
 async function readRequestBody(req) {
@@ -349,20 +469,41 @@ function getOrderLinesFromMerchantData(merchantData) {
     .filter(Boolean);
 }
 
+function describeDelivery(merchantData) {
+  const delivery = merchantData?.delivery || {};
+  if (delivery.method === "delivery") {
+    return {
+      label: "Entrega a domicilio",
+      detail: delivery.address || "Dirección no indicada",
+    };
+  }
+  return {
+    label: "Recogida en local",
+    detail: delivery.pickupTime || merchantData?.pickupTime || "Lo antes posible",
+  };
+}
+
 function buildPaidOrderEmail(payload) {
   const merchantData = payload.merchantData || {};
   const customer = merchantData.customer || {};
   const lines = getOrderLinesFromMerchantData(merchantData);
+  const delivery = describeDelivery(merchantData);
   const amount = formatEuros(payload.amountCents || merchantData.totalCents);
+  const subtotal = formatEuros(merchantData.subtotalCents || payload.amountCents || 0);
+  const deliveryFee = formatEuros(merchantData.deliveryFeeCents || 0);
   const itemText = lines.length
     ? lines.map((line) => `- ${line.qty} x ${line.name} — ${formatEuros(line.subtotalCents)}`).join("\n")
     : "- Sin detalle de artículos";
   const safeRows = [
     ["Pedido", payload.orderId],
     ["Importe", amount],
+    ["Subtotal", subtotal],
+    ["Gastos entrega", deliveryFee],
     ["Cliente", customer.name],
     ["Teléfono", customer.phone],
-    ["Recogida", merchantData.pickupTime],
+    ["Email", customer.email],
+    ["Entrega", delivery.label],
+    ["Detalle entrega", delivery.detail],
     ["Autorización", payload.authorisationCode],
     ["Respuesta Redsys", payload.response],
   ];
@@ -372,9 +513,13 @@ function buildPaidOrderEmail(payload) {
     "",
     `Pedido: ${payload.orderId || "—"}`,
     `Importe: ${amount}`,
+    `Subtotal: ${subtotal}`,
+    `Gastos entrega: ${deliveryFee}`,
     `Cliente: ${customer.name || "—"}`,
     `Teléfono: ${customer.phone || "—"}`,
-    `Recogida: ${merchantData.pickupTime || "—"}`,
+    `Email: ${customer.email || "—"}`,
+    `Entrega: ${delivery.label}`,
+    `Detalle entrega: ${delivery.detail}`,
     "",
     "Productos:",
     itemText,
@@ -397,7 +542,7 @@ function buildPaidOrderEmail(payload) {
   const html = `
     <div style="font-family:Arial,sans-serif;line-height:1.5;color:#1B1814;max-width:680px;">
       <h1 style="margin:0 0 12px;">Pedido pagado</h1>
-      <p style="margin:0 0 18px;">Redsys ha confirmado un pago correcto para recogida en Bolera Contrastes.</p>
+      <p style="margin:0 0 18px;">Redsys ha confirmado un pago correcto para un pedido online de Bolera Contrastes.</p>
       <table style="border-collapse:collapse;width:100%;background:#fff;border:1px solid #eee;border-radius:12px;overflow:hidden;">${htmlRows}</table>
       <h2 style="font-size:18px;margin:22px 0 8px;">Productos</h2>
       <ul>${htmlItems}</ul>
@@ -417,7 +562,10 @@ function buildKitchenOrderMessage(payload) {
   const merchantData = payload.merchantData || {};
   const customer = merchantData.customer || {};
   const lines = getOrderLinesFromMerchantData(merchantData);
+  const delivery = describeDelivery(merchantData);
   const amount = formatEuros(payload.amountCents || merchantData.totalCents);
+  const subtotal = formatEuros(merchantData.subtotalCents || payload.amountCents || 0);
+  const deliveryFee = formatEuros(merchantData.deliveryFeeCents || 0);
   const itemText = lines.length
     ? lines.map((line) => `• ${line.qty} x ${line.name} — ${formatEuros(line.subtotalCents)}`).join("\n")
     : "• Sin detalle de artículos";
@@ -427,9 +575,13 @@ function buildKitchenOrderMessage(payload) {
     "",
     `Pedido: #${payload.orderId || "—"}`,
     `Importe: ${amount}`,
+    `Subtotal: ${subtotal}`,
+    `Gastos entrega: ${deliveryFee}`,
     `Cliente: ${customer.name || "—"}`,
     `Teléfono: ${customer.phone || "—"}`,
-    `Recogida: ${merchantData.pickupTime || "—"}`,
+    `Email: ${customer.email || "—"}`,
+    `Entrega: ${delivery.label}`,
+    `Detalle entrega: ${delivery.detail}`,
     "",
     "Productos:",
     itemText,
@@ -508,7 +660,9 @@ async function sendPaidOrderEmail(config, payload) {
 }
 
 module.exports = {
+  DELIVERY_FEE_CENTS,
   SIGNATURE_VERSION,
+  buildOrderPayment,
   buildRedsysPayment,
   cleanText,
   decodeMerchantData,
@@ -518,6 +672,9 @@ module.exports = {
   getRedsysConfig,
   isAuthorisedResponse,
   readRequestBody,
+  validateCustomer,
+  validateDelivery,
+  validatePaymentMethod,
   validateAndPriceCart,
   verifySignature,
   buildWebhookPayload,

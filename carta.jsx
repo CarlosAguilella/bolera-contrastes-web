@@ -1,13 +1,17 @@
-// Bolera Contrastes — Carta
+// Bolera Contrastes — Carta y pedidos online
 const { useState: useStateC, useMemo: useMemoC, useEffect: useEffectC } = React;
+const Delivery = window.BC_DELIVERY;
 
-function formatCartaPrice(value) {
-  return `${Number(value).toFixed(2).replace('.', ',')} €`;
-}
-
-const CART_STORAGE_KEY = "bc-delivery-cart";
-const PICKUP_OPTIONS = ["Lo antes posible", "En 20 minutos", "En 30 minutos", "En 45 minutos", "En 1 hora"];
-const FEATURED_DISH_IDS = ["p2", "p1", "h1", "d1"];
+const CHECKOUT_INITIAL = {
+  name: "",
+  phone: "",
+  email: "",
+  deliveryMethod: "pickup",
+  address: "",
+  pickupTime: Delivery.PICKUP_OPTIONS[0],
+  notes: "",
+  paymentMethod: "redsys",
+};
 
 function scrollToDeliveryCheckout() {
   document.getElementById("pedido-recoger")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -17,36 +21,8 @@ function scrollToMenuStart() {
   document.getElementById("carta-listado")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function submitRedsysForm(paymentUrl, fields) {
-  const form = document.createElement("form");
-  form.method = "POST";
-  form.action = paymentUrl;
-  form.style.display = "none";
-  form.acceptCharset = "UTF-8";
-
-  Object.entries(fields || {}).forEach(([name, value]) => {
-    const input = document.createElement("input");
-    input.type = "hidden";
-    input.name = name;
-    input.value = value;
-    form.appendChild(input);
-  });
-
-  document.body.appendChild(form);
-  form.submit();
-}
-
-function savePendingKitchenOrder(order) {
-  try {
-    const storageOrder = {
-      ...order,
-      savedAt: new Date().toISOString(),
-    };
-    localStorage.setItem("bc-last-paid-order", JSON.stringify(storageOrder));
-    if (order.orderId) {
-      localStorage.setItem(`bc-pending-order-${order.orderId}`, JSON.stringify(storageOrder));
-    }
-  } catch (error) {}
+function getCheckoutError(errors, field, showErrors) {
+  return showErrors && errors[field] ? errors[field] : "";
 }
 
 function Carta({ onNav, tweaks }) {
@@ -56,81 +32,56 @@ function Carta({ onNav, tweaks }) {
 
   const [query, setQuery] = useStateC("");
   const [cat, setCat] = useStateC("all");
-  const [excluded, setExcluded] = useStateC([]); // alérgenos a excluir
+  const [excluded, setExcluded] = useStateC([]);
   const [vegOnly, setVegOnly] = useStateC(false);
   const [showAllergens, setShowAllergens] = useStateC(false);
-  const [cart, setCart] = useStateC(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(CART_STORAGE_KEY) || "{}");
-      return saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
-    } catch (error) {
-      return {};
-    }
-  });
-  const [orderName, setOrderName] = useStateC("");
-  const [orderPhone, setOrderPhone] = useStateC("");
-  const [pickupTime, setPickupTime] = useStateC("Lo antes posible");
-  const [orderNotes, setOrderNotes] = useStateC("");
-  const [paymentStatus, setPaymentStatus] = useStateC({ type: "idle", message: "" });
+  const [cart, setCart] = useStateC(() => Delivery.readCart());
+  const [checkout, setCheckout] = useStateC(CHECKOUT_INITIAL);
+  const [checkoutAttempted, setCheckoutAttempted] = useStateC(false);
+  const [paymentState, setPaymentState] = useStateC({ type: "idle", message: "" });
 
   useEffectC(() => {
-    try {
-      if (Object.keys(cart).length) localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
-      else localStorage.removeItem(CART_STORAGE_KEY);
-    } catch (error) {}
+    Delivery.writeCart(cart);
   }, [cart]);
 
   const filtered = useMemoC(() => {
-    return ALL.filter((d) => {
-      if (cat !== "all" && d.cat !== cat) return false;
-      if (vegOnly && !d.veg) return false;
+    return ALL.filter((dish) => {
+      if (cat !== "all" && dish.cat !== cat) return false;
+      if (vegOnly && !dish.veg) return false;
       if (query) {
         const q = query.toLowerCase();
-        if (!d.name.toLowerCase().includes(q) && !d.desc.toLowerCase().includes(q)) return false;
+        if (!dish.name.toLowerCase().includes(q) && !dish.desc.toLowerCase().includes(q)) return false;
       }
-      if (excluded.length && d.allergens.some((a) => excluded.includes(a))) return false;
+      if (excluded.length && dish.allergens.some((a) => excluded.includes(a))) return false;
       return true;
     });
-  }, [query, cat, excluded, vegOnly]);
+  }, [ALL, cat, excluded, query, vegOnly]);
 
-  // Group by category if showing all
   const grouped = useMemoC(() => {
     if (cat !== "all") return [[cat, filtered]];
     const groups = {};
-    filtered.forEach((d) => {
-      groups[d.cat] = groups[d.cat] || [];
-      groups[d.cat].push(d);
+    filtered.forEach((dish) => {
+      groups[dish.cat] = groups[dish.cat] || [];
+      groups[dish.cat].push(dish);
     });
-    // Preservar el orden de CATS
-    return CATS.filter((c) => c.id !== "all" && groups[c.id]?.length).map((c) => [c.id, groups[c.id]]);
-  }, [filtered, cat]);
+    return CATS.filter((category) => category.id !== "all" && groups[category.id]?.length)
+      .map((category) => [category.id, groups[category.id]]);
+  }, [CATS, cat, filtered]);
 
   const featuredDishes = useMemoC(() => {
-    return FEATURED_DISH_IDS.map((id) => ALL.find((dish) => dish.id === id)).filter(Boolean);
+    return Delivery.FEATURED_DISH_IDS.map((id) => ALL.find((dish) => dish.id === id)).filter(Boolean);
   }, [ALL]);
 
-  const toggleAllergen = (code) => {
-    setExcluded((cur) =>
-      cur.includes(code) ? cur.filter((c) => c !== code) : [...cur, code]
-    );
-  };
-
-  const cartLines = useMemoC(() => {
-    return Object.entries(cart)
-      .map(([id, qty]) => {
-        const dish = ALL.find((item) => item.id === id);
-        return dish ? { dish, qty } : null;
-      })
-      .filter(Boolean);
-  }, [cart, ALL]);
-
-  const cartCount = useMemoC(() => {
-    return cartLines.reduce((sum, line) => sum + line.qty, 0);
-  }, [cartLines]);
-
-  const cartTotal = useMemoC(() => {
-    return cartLines.reduce((sum, line) => sum + line.dish.price * line.qty, 0);
-  }, [cartLines]);
+  const cartLines = useMemoC(() => Delivery.buildCartLines(cart, ALL), [ALL, cart]);
+  const cartCount = useMemoC(() => cartLines.reduce((sum, line) => sum + line.qty, 0), [cartLines]);
+  const pricing = useMemoC(() => Delivery.calculatePricing(cartLines, checkout.deliveryMethod), [cartLines, checkout.deliveryMethod]);
+  const validation = useMemoC(
+    () => Delivery.validateCheckout({ cartCount, checkout }),
+    [cartCount, checkout]
+  );
+  const showErrors = checkoutAttempted || paymentState.type === "error";
+  const canPayOrder = validation.ok && paymentState.type !== "loading";
+  const firstError = Object.values(validation.errors)[0] || "";
 
   const updateCart = (dish, delta) => {
     setCart((current) => {
@@ -140,72 +91,96 @@ function Carta({ onNav, tweaks }) {
       else next[dish.id] = qty;
       return next;
     });
+    if (paymentState.type !== "loading") {
+      setPaymentState({ type: "idle", message: "" });
+    }
   };
 
   const clearCart = () => {
     setCart({});
-    setPaymentStatus({ type: "idle", message: "" });
+    setPaymentState({ type: "idle", message: "" });
   };
 
-  const checkoutHint = useMemoC(() => {
-    if (cartCount === 0) return "Añade algo al carrito para empezar";
-    if (orderName.trim().length < 2) return "Escribe tu nombre para identificar el pedido";
-    if (orderPhone.replace(/\D/g, "").length < 6) return "Añade un teléfono de contacto";
-    if (paymentStatus.type === "loading") return "Preparando pago seguro…";
-    return "Pago seguro con Redsys · Pedido confirmado al pagar";
-  }, [cartCount, orderName, orderPhone, paymentStatus.type]);
+  const updateCheckout = (field, value) => {
+    setCheckout((current) => ({ ...current, [field]: value }));
+    if (paymentState.type !== "loading") {
+      setPaymentState({ type: "idle", message: "" });
+    }
+  };
 
-  const canPayOrder = cartCount > 0 && orderName.trim().length >= 2 && orderPhone.replace(/\D/g, "").length >= 6 && paymentStatus.type !== "loading";
-  const checkoutHintTone = paymentStatus.type === "loading" ? "is-loading" : canPayOrder ? "is-ready" : "is-pending";
-  const payButtonLabel = paymentStatus.type === "loading"
-    ? "Preparando pago…"
+  const toggleAllergen = (code) => {
+    setExcluded((current) =>
+      current.includes(code) ? current.filter((item) => item !== code) : [...current, code]
+    );
+  };
+
+  const payButtonLabel = paymentState.type === "loading"
+    ? "Preparando pago seguro…"
     : cartCount === 0
       ? "Añade productos"
       : canPayOrder
-        ? `Pagar ${formatCartaPrice(cartTotal)}`
+        ? `Pagar ${Delivery.formatPrice(pricing.total)}`
         : "Completa datos para pagar";
 
-  const sendOrder = async (event) => {
-    event.preventDefault();
-    if (!canPayOrder) return;
+  const checkoutHint = paymentState.type === "loading"
+    ? "Conectando con la pasarela en esta misma pestaña…"
+    : validation.ok
+      ? "Todo listo · Pago seguro y pedido enviado al local tras confirmación bancaria"
+      : firstError;
 
-    setPaymentStatus({ type: "loading", message: "Preparando pago seguro con Redsys…" });
+  const checkoutHintTone = paymentState.type === "loading"
+    ? "is-loading"
+    : validation.ok
+      ? "is-ready"
+      : "is-pending";
+
+  const startPayment = async (event) => {
+    event.preventDefault();
+    setCheckoutAttempted(true);
+
+    const currentValidation = Delivery.validateCheckout({ cartCount, checkout });
+    if (!currentValidation.ok) {
+      setPaymentState({
+        type: "error",
+        message: Object.values(currentValidation.errors)[0] || "Revisa los datos del pedido.",
+      });
+      return;
+    }
+
+    setPaymentState({ type: "loading", message: "Preparando pago seguro…" });
 
     try {
-      const response = await fetch("/api/redsys-create-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cart: cartLines.map(({ dish, qty }) => ({ id: dish.id, qty })),
-          customer: { name: orderName, phone: orderPhone },
-          pickupTime,
-          notes: orderNotes,
-        }),
-      });
-      const payload = await response.json().catch(() => ({}));
+      const orderPayload = Delivery.buildOrderPayload({ cartLines, checkout });
+      const payment = await Delivery.createPayment(orderPayload);
 
-      if (!response.ok || !payload.paymentUrl || !payload.fields) {
-        throw new Error(payload.error || "No se ha podido iniciar el pago.");
-      }
-
-      setPaymentStatus({ type: "loading", message: "Redirigiendo a Redsys para pagar…" });
-      savePendingKitchenOrder({
-        orderId: payload.orderId,
-        totalCents: payload.totalCents,
-        customer: { name: orderName, phone: orderPhone },
-        pickupTime,
-        notes: orderNotes,
+      Delivery.savePendingOrder({
+        orderId: payment.orderId,
+        provider: payment.provider,
+        subtotalCents: payment.subtotalCents,
+        deliveryFeeCents: payment.deliveryFeeCents,
+        totalCents: payment.totalCents,
+        customer: orderPayload.customer,
+        delivery: orderPayload.delivery,
+        paymentMethod: orderPayload.paymentMethod,
+        notes: orderPayload.notes,
         lines: cartLines.map(({ dish, qty }) => ({
           id: dish.id,
           name: dish.name,
           qty,
           unitPrice: dish.price,
+          unitPriceCents: Math.round(dish.price * 100),
           subtotal: dish.price * qty,
+          subtotalCents: Math.round(dish.price * qty * 100),
         })),
       });
-      submitRedsysForm(payload.paymentUrl, payload.fields);
+
+      setPaymentState({
+        type: "loading",
+        message: payment.provider === "demo" ? "Modo demo: mostrando confirmación…" : "Redirigiendo a Redsys…",
+      });
+      Delivery.redirectToPayment(payment);
     } catch (error) {
-      setPaymentStatus({
+      setPaymentState({
         type: "error",
         message: error.message || "No se ha podido preparar el pago. Inténtalo de nuevo.",
       });
@@ -216,12 +191,12 @@ function Carta({ onNav, tweaks }) {
     <main data-screen-label="Carta">
       <section className="delivery-hero bc-container">
         <div>
-          <span className="eyebrow">Pedido online · Recogida en local</span>
+          <span className="eyebrow">Pedido online · Recogida o domicilio</span>
           <h1 className="h-hero" style={{ marginTop: 10 }}>
             Pide fácil.<br/><em>Recoge rápido</em>.
           </h1>
           <p className="muted pretty" style={{ maxWidth: '54ch', marginTop: 14, fontSize: 18 }}>
-            Elige platos, paga de forma segura y el pedido llega preparado a cocina. Sin llamadas, sin esperas raras.
+            Elige platos, revisa el total, paga sin ventanas emergentes y recibe una confirmación clara del pedido.
           </p>
           <div className="delivery-hero__actions">
             <button className="btn btn-primary btn-lg" type="button" onClick={scrollToMenuStart}>Empezar pedido</button>
@@ -233,9 +208,9 @@ function Carta({ onNav, tweaks }) {
         <div className="delivery-steps-card">
           <span className="eyebrow">Cómo funciona</span>
           <ol>
-            <li><strong>1</strong><span>Elige tus platos favoritos.</span></li>
-            <li><strong>2</strong><span>Paga con Redsys antes de cocinar.</span></li>
-            <li><strong>3</strong><span>Recoge en Bolera Contrastes.</span></li>
+            <li><strong>1</strong><span>Elige productos y cantidades.</span></li>
+            <li><strong>2</strong><span>Completa datos y método de entrega.</span></li>
+            <li><strong>3</strong><span>Paga con Redsys en la misma pestaña.</span></li>
           </ol>
         </div>
       </section>
@@ -255,7 +230,7 @@ function Carta({ onNav, tweaks }) {
                 <img src={dish.img} alt="" loading="lazy" />
                 <span>
                   <strong>{dish.name}</strong>
-                  <small>{formatCartaPrice(dish.price)}</small>
+                  <small>{Delivery.formatPrice(dish.price)}</small>
                   <em>{cart[dish.id] ? `${cart[dish.id]} en tu pedido` : "Añadir rápido"}</em>
                 </span>
               </button>
@@ -264,7 +239,6 @@ function Carta({ onNav, tweaks }) {
         </section>
       )}
 
-      {/* TOOLBAR sticky */}
       <div className="carta-toolbar">
         <div className="bc-container">
           <div className="carta-search">
@@ -279,7 +253,7 @@ function Carta({ onNav, tweaks }) {
               aria-label="Buscar en la carta"
             />
             {query && (
-              <button onClick={() => setQuery("")} aria-label="Borrar búsqueda">
+              <button type="button" onClick={() => setQuery("")} aria-label="Borrar búsqueda">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
                   <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
@@ -288,52 +262,58 @@ function Carta({ onNav, tweaks }) {
           </div>
 
           <div className="carta-cats">
-            {CATS.map((c) => (
+            {CATS.map((category) => (
               <button
-                key={c.id}
-                className={"chip " + (cat === c.id ? "is-active" : "")}
-                onClick={() => setCat(c.id)}
+                key={category.id}
+                type="button"
+                className={"chip " + (cat === category.id ? "is-active" : "")}
+                onClick={() => setCat(category.id)}
               >
-                {c.label}
+                {category.label}
               </button>
             ))}
             <button
+              type="button"
               className={"chip " + (vegOnly ? "is-active" : "")}
-              onClick={() => setVegOnly((v) => !v)}
+              onClick={() => setVegOnly((value) => !value)}
               title="Solo platos vegetarianos"
             >
               🌱 Veg
             </button>
             <button
+              type="button"
               className={"chip " + (showAllergens || excluded.length ? "is-active" : "")}
-              onClick={() => setShowAllergens((v) => !v)}
+              onClick={() => setShowAllergens((value) => !value)}
             >
               Alérgenos {excluded.length > 0 ? `(${excluded.length})` : ""}
             </button>
             <button
+              type="button"
               className={"chip " + (cartCount > 0 ? "is-active" : "")}
               onClick={scrollToDeliveryCheckout}
             >
-              Mi pedido {cartCount > 0 ? `(${cartCount}) · ${formatCartaPrice(cartTotal)}` : ""}
+              Mi pedido {cartCount > 0 ? `(${cartCount}) · ${Delivery.formatPrice(pricing.total)}` : ""}
             </button>
           </div>
 
           {showAllergens && (
             <div className="allergen-bar fade-in">
               <span className="allergen-bar__label">Excluir:</span>
-              {Object.entries(ALLERGENS).map(([code, a]) => (
+              {Object.entries(ALLERGENS).map(([code, allergen]) => (
                 <button
                   key={code}
+                  type="button"
                   className={"allergen-pick " + (excluded.includes(code) ? "is-excluded" : "")}
                   onClick={() => toggleAllergen(code)}
                 >
-                  <span className="chip-allergen">{a.short}</span>
-                  <span>{a.label}</span>
+                  <span className="chip-allergen">{allergen.short}</span>
+                  <span>{allergen.label}</span>
                 </button>
               ))}
               {excluded.length > 0 && (
                 <button
                   className="btn btn-ghost btn-sm"
+                  type="button"
                   onClick={() => setExcluded([])}
                   style={{ marginLeft: 'auto' }}
                 >
@@ -345,12 +325,11 @@ function Carta({ onNav, tweaks }) {
         </div>
       </div>
 
-      {/* LISTADO */}
       <div id="carta-listado" className="bc-container" style={{ paddingTop: 'var(--s-3)', paddingBottom: 'var(--s-8)' }}>
         {filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 'var(--s-8) 0', color: 'var(--ink-soft)' }}>
             <p style={{ fontSize: 18 }}>Nada con esos filtros 😕</p>
-            <button className="btn btn-ghost btn-sm" onClick={() => { setQuery(""); setCat("all"); setExcluded([]); setVegOnly(false); }}>
+            <button className="btn btn-ghost btn-sm" type="button" onClick={() => { setQuery(""); setCat("all"); setExcluded([]); setVegOnly(false); }}>
               Limpiar filtros
             </button>
           </div>
@@ -358,18 +337,18 @@ function Carta({ onNav, tweaks }) {
           grouped.map(([catId, items]) => (
             <section key={catId}>
               <div className="menu-cat">
-                <h3 className="display">{CATS.find((c) => c.id === catId)?.label || catId}</h3>
+                <h3 className="display">{CATS.find((category) => category.id === catId)?.label || catId}</h3>
                 <span className="menu-cat__count">{items.length} {items.length === 1 ? "plato" : "platos"}</span>
               </div>
               <div className="menu-grid" data-density={tweaks.density} data-photos={tweaks.photos ? "on" : "off"}>
-                {items.map((d) => (
+                {items.map((dish) => (
                   <DishCard
-                    key={d.id}
-                    dish={d}
+                    key={dish.id}
+                    dish={dish}
                     excluded={excluded}
-                    quantity={cart[d.id] || 0}
-                    onAdd={() => updateCart(d, 1)}
-                    onRemove={() => updateCart(d, -1)}
+                    quantity={cart[dish.id] || 0}
+                    onAdd={() => updateCart(dish, 1)}
+                    onRemove={() => updateCart(dish, -1)}
                   />
                 ))}
               </div>
@@ -381,19 +360,19 @@ function Carta({ onNav, tweaks }) {
           <div className="delivery-checkout__head">
             <div>
               <span className="eyebrow">Finalizar pedido</span>
-              <h2 className="h-section" style={{ marginTop: 8 }}>Revisa y paga</h2>
-              <p className="muted pretty" style={{ marginTop: 10, maxWidth: '54ch' }}>
-                Cocina recibe el pedido cuando Redsys confirma el pago. Tú solo vienes, recoges y listo.
+              <h2 className="h-section" style={{ marginTop: 8 }}>Revisa, paga y confirma</h2>
+              <p className="muted pretty" style={{ marginTop: 10, maxWidth: '58ch' }}>
+                El pago se hace con redirección segura en la misma pestaña. El local recibe el pedido cuando el banco confirma la operación.
               </p>
             </div>
             <div className="delivery-trust-card">
-              <strong>Pago protegido</strong>
-              <span>Importe recalculado en servidor · Confirmación Redsys · Aviso a cocina</span>
+              <strong>Seguro para producción</strong>
+              <span>Precio recalculado en servidor · Sin claves en frontend · Sin popups bloqueables</span>
             </div>
           </div>
 
           <div className="delivery-order">
-            <div className="delivery-cart">
+            <aside className="delivery-cart" aria-label="Resumen del pedido">
               <div className="delivery-card-head">
                 <div>
                   <span className="eyebrow">Carrito</span>
@@ -403,9 +382,10 @@ function Carta({ onNav, tweaks }) {
                   <button className="btn btn-ghost btn-sm" type="button" onClick={clearCart}>Vaciar</button>
                 )}
               </div>
+
               {cartLines.length === 0 ? (
                 <div className="delivery-empty-cart">
-                  <p>Añade platos de la carta para preparar el pedido.</p>
+                  <p>Añade productos de la carta para preparar el pedido.</p>
                   <button className="btn btn-secondary btn-sm" type="button" onClick={scrollToMenuStart}>Ver platos</button>
                 </div>
               ) : (
@@ -414,8 +394,8 @@ function Carta({ onNav, tweaks }) {
                     <div className="delivery-cart__line" key={dish.id}>
                       <div>
                         <strong>{dish.name}</strong>
-                        <span>{qty} x {formatCartaPrice(dish.price)}</span>
-                        <em>{formatCartaPrice(dish.price * qty)}</em>
+                        <span>{qty} x {Delivery.formatPrice(dish.price)}</span>
+                        <em>{Delivery.formatPrice(dish.price * qty)}</em>
                       </div>
                       <div className="delivery-cart__qty">
                         <button type="button" onClick={() => updateCart(dish, -1)} aria-label={`Quitar ${dish.name}`}>−</button>
@@ -424,56 +404,126 @@ function Carta({ onNav, tweaks }) {
                       </div>
                     </div>
                   ))}
+
+                  <div className="delivery-summary">
+                    <div><span>Subtotal</span><strong>{Delivery.formatPrice(pricing.subtotal)}</strong></div>
+                    <div><span>{checkout.deliveryMethod === "delivery" ? "Entrega domicilio" : "Recogida local"}</span><strong>{pricing.deliveryFee ? Delivery.formatPrice(pricing.deliveryFee) : "Gratis"}</strong></div>
+                  </div>
                   <div className="delivery-cart__total">
-                    <span>Total a pagar</span>
-                    <strong>{formatCartaPrice(cartTotal)}</strong>
+                    <span>Total final</span>
+                    <strong>{Delivery.formatPrice(pricing.total)}</strong>
                   </div>
                 </React.Fragment>
               )}
-            </div>
+            </aside>
 
-            <form className="delivery-form" onSubmit={sendOrder}>
+            <form className="delivery-form" onSubmit={startPayment} noValidate>
               <div className="delivery-card-head delivery-form__full">
                 <div>
-                  <span className="eyebrow">Tus datos</span>
-                  <strong>Solo lo necesario</strong>
+                  <span className="eyebrow">Checkout</span>
+                  <strong>Datos del pedido</strong>
                 </div>
-                <span className="delivery-secure-pill">🔒 Redsys</span>
+                <span className="delivery-secure-pill">🔒 Sin popups</span>
               </div>
-              <label>
-                Nombre
-                <input value={orderName} onChange={(e) => setOrderName(e.target.value)} placeholder="Tu nombre" autoComplete="name" />
+
+              <label className={getCheckoutError(validation.errors, "name", showErrors) ? "has-error" : ""}>
+                Nombre completo
+                <input value={checkout.name} onChange={(e) => updateCheckout("name", e.target.value)} placeholder="Tu nombre" autoComplete="name" />
+                {getCheckoutError(validation.errors, "name", showErrors) && <small>{validation.errors.name}</small>}
               </label>
-              <label>
+
+              <label className={getCheckoutError(validation.errors, "phone", showErrors) ? "has-error" : ""}>
                 Teléfono
-                <input value={orderPhone} onChange={(e) => setOrderPhone(e.target.value)} placeholder="600 000 000" type="tel" inputMode="tel" autoComplete="tel" />
+                <input value={checkout.phone} onChange={(e) => updateCheckout("phone", e.target.value)} placeholder="600 000 000" type="tel" inputMode="tel" autoComplete="tel" />
+                {getCheckoutError(validation.errors, "phone", showErrors) && <small>{validation.errors.phone}</small>}
               </label>
-              <fieldset className="delivery-time delivery-form__full">
-                <legend>Hora de recogida</legend>
+
+              <label className={"delivery-form__full " + (getCheckoutError(validation.errors, "email", showErrors) ? "has-error" : "")}>
+                Email recomendado
+                <input value={checkout.email} onChange={(e) => updateCheckout("email", e.target.value)} placeholder="tu@email.com" type="email" autoComplete="email" />
+                {getCheckoutError(validation.errors, "email", showErrors) && <small>{validation.errors.email}</small>}
+              </label>
+
+              <fieldset className="delivery-choice delivery-form__full">
+                <legend>Método de entrega</legend>
                 <div>
-                  {PICKUP_OPTIONS.map((option) => (
+                  <button
+                    type="button"
+                    className={checkout.deliveryMethod === "pickup" ? "is-active" : ""}
+                    onClick={() => updateCheckout("deliveryMethod", "pickup")}
+                  >
+                    <strong>Recogida en local</strong>
+                    <span>Sin gastos · Carrer del Ceramista Abad, 9</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={checkout.deliveryMethod === "delivery" ? "is-active" : ""}
+                    onClick={() => updateCheckout("deliveryMethod", "delivery")}
+                  >
+                    <strong>Entrega a domicilio</strong>
+                    <span>{Delivery.formatPrice(Delivery.DELIVERY_FEE)} · Onda y alrededores</span>
+                  </button>
+                </div>
+              </fieldset>
+
+              {checkout.deliveryMethod === "pickup" ? (
+                <fieldset className="delivery-time delivery-form__full">
+                  <legend>Hora de recogida</legend>
+                  <div>
+                    {Delivery.PICKUP_OPTIONS.map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        className={checkout.pickupTime === option ? "is-active" : ""}
+                        onClick={() => updateCheckout("pickupTime", option)}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+              ) : (
+                <label className={"delivery-form__full " + (getCheckoutError(validation.errors, "address", showErrors) ? "has-error" : "")}>
+                  Dirección completa
+                  <input value={checkout.address} onChange={(e) => updateCheckout("address", e.target.value)} placeholder="Calle, número, piso, localidad" autoComplete="street-address" />
+                  {getCheckoutError(validation.errors, "address", showErrors) && <small>{validation.errors.address}</small>}
+                </label>
+              )}
+
+              <fieldset className="delivery-choice delivery-form__full">
+                <legend>Método de pago</legend>
+                <div>
+                  {Delivery.PAYMENT_METHODS.map((method) => (
                     <button
-                      key={option}
+                      key={method.id}
                       type="button"
-                      className={pickupTime === option ? "is-active" : ""}
-                      onClick={() => setPickupTime(option)}
+                      className={checkout.paymentMethod === method.id ? "is-active" : ""}
+                      onClick={() => updateCheckout("paymentMethod", method.id)}
                     >
-                      {option}
+                      <strong>{method.label}</strong>
+                      <span>{method.detail}</span>
+                      {method.badge && <em>{method.badge}</em>}
                     </button>
                   ))}
                 </div>
               </fieldset>
+
               <label className="delivery-form__full">
-                Notas para cocina
-                <textarea value={orderNotes} onChange={(e) => setOrderNotes(e.target.value)} placeholder="Sin cebolla, alérgenos, cambio de horario..." />
+                Notas del pedido
+                <textarea value={checkout.notes} onChange={(e) => updateCheckout("notes", e.target.value)} placeholder="Sin cebolla, alérgenos, portal, horario, cambio..." />
               </label>
-              <div className={`delivery-checkout-hint ${checkoutHintTone} delivery-form__full`}>{checkoutHint}</div>
-              {paymentStatus.message && (
-                <div className={`delivery-payment-status is-${paymentStatus.type} delivery-form__full`} role="status">
-                  {paymentStatus.message}
+
+              <div className={`delivery-checkout-hint ${checkoutHintTone} delivery-form__full`} role="status">
+                {checkoutHint}
+              </div>
+
+              {paymentState.message && paymentState.type !== "idle" && (
+                <div className={`delivery-payment-status is-${paymentState.type} delivery-form__full`} role="status">
+                  {paymentState.message}
                 </div>
               )}
-              <button className="btn btn-primary btn-lg btn-block delivery-form__full" type="submit" disabled={!canPayOrder} style={{ opacity: canPayOrder ? 1 : 0.5 }}>
+
+              <button className="btn btn-primary btn-lg btn-block delivery-form__full" type="submit" disabled={!canPayOrder}>
                 {payButtonLabel}
               </button>
             </form>
@@ -483,9 +533,9 @@ function Carta({ onNav, tweaks }) {
 
       {cartCount > 0 && (
         <div className="delivery-sticky-cart">
-          <button type="button" onClick={scrollToDeliveryCheckout} aria-label={`Finalizar pedido de ${formatCartaPrice(cartTotal)}`}>
+          <button type="button" onClick={scrollToDeliveryCheckout} aria-label={`Finalizar pedido de ${Delivery.formatPrice(pricing.total)}`}>
             <span>{cartCount} {cartCount === 1 ? "producto" : "productos"}</span>
-            <strong>{formatCartaPrice(cartTotal)}</strong>
+            <strong>{Delivery.formatPrice(pricing.total)}</strong>
             <small>Finalizar pedido</small>
           </button>
         </div>
@@ -495,7 +545,7 @@ function Carta({ onNav, tweaks }) {
 }
 
 function DishCard({ dish, excluded, quantity = 0, onAdd, onRemove }) {
-  const hasExcluded = dish.allergens.some((a) => excluded.includes(a));
+  const hasExcluded = dish.allergens.some((allergen) => excluded.includes(allergen));
   return (
     <article className={"dish-card " + (quantity > 0 ? "is-in-cart" : "")} style={hasExcluded ? { opacity: 0.4 } : {}}>
       <div className="dish-card__media">
@@ -511,7 +561,7 @@ function DishCard({ dish, excluded, quantity = 0, onAdd, onRemove }) {
       <div className="dish-card__body">
         <div className="dish-card__head">
           <h4 className="dish-card__name balance">{dish.name}</h4>
-          <span className="dish-card__price">{formatCartaPrice(dish.price)}</span>
+          <span className="dish-card__price">{Delivery.formatPrice(dish.price)}</span>
         </div>
         <p className="dish-card__desc pretty">{dish.desc}</p>
         {dish.allergens.length > 0 && (

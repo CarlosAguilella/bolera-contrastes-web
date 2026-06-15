@@ -989,6 +989,26 @@ input, textarea, select { font: inherit; color: inherit; }
   font-size: 34px;
   font-weight: 400;
 }
+.delivery-summary {
+  display: grid;
+  gap: 8px;
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--bg);
+}
+.delivery-summary div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+.delivery-summary strong {
+  color: var(--ink);
+  font-weight: 800;
+}
 .delivery-form {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1033,6 +1053,18 @@ input, textarea, select { font: inherit; color: inherit; }
   outline: none;
   border-color: var(--accent);
 }
+.delivery-form label small {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.delivery-form label.has-error input,
+.delivery-form label.has-error textarea {
+  border-color: color-mix(in oklab, var(--accent) 65%, var(--line));
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 12%, transparent);
+}
 .delivery-form__full {
   grid-column: 1 / -1;
 }
@@ -1055,6 +1087,14 @@ input, textarea, select { font: inherit; color: inherit; }
   display: grid;
   gap: 8px;
 }
+.delivery-choice {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: 10px;
+}
+.delivery-choice legend,
 .delivery-time legend {
   color: var(--ink-soft);
   font-size: 12px;
@@ -1062,6 +1102,51 @@ input, textarea, select { font: inherit; color: inherit; }
   letter-spacing: .06em;
   text-transform: uppercase;
   padding: 0;
+}
+.delivery-choice > div {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--s-3);
+}
+.delivery-choice button {
+  min-height: 104px;
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--bg);
+  color: var(--ink);
+  text-align: left;
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease, background .15s ease;
+}
+.delivery-choice button:hover {
+  transform: translateY(-1px);
+  border-color: var(--line-strong);
+}
+.delivery-choice button.is-active {
+  border-color: color-mix(in oklab, var(--accent) 55%, var(--line));
+  background: color-mix(in oklab, var(--accent-soft) 40%, var(--bg-elev));
+  box-shadow: 0 14px 36px rgba(200, 85, 43, .11);
+}
+.delivery-choice strong {
+  font-size: 15px;
+}
+.delivery-choice span {
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.35;
+}
+.delivery-choice em {
+  width: max-content;
+  padding: 5px 8px;
+  border-radius: var(--r-pill);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
 }
 .delivery-time div {
   display: flex;
@@ -1122,6 +1207,16 @@ input, textarea, select { font: inherit; color: inherit; }
   border-color: color-mix(in oklab, var(--accent) 45%, var(--line));
   background: color-mix(in oklab, var(--accent) 12%, var(--bg-elev));
   color: var(--accent);
+}
+.delivery-payment-status.is-success {
+  border-color: color-mix(in oklab, var(--positive) 45%, var(--line));
+  background: color-mix(in oklab, var(--positive) 10%, var(--bg-elev));
+  color: var(--positive);
+}
+.delivery-payment-status.is-cancel {
+  border-color: color-mix(in oklab, var(--warning) 45%, var(--line));
+  background: color-mix(in oklab, var(--warning) 10%, var(--bg-elev));
+  color: var(--warning);
 }
 .delivery-sticky-cart {
   position: fixed;
@@ -1210,6 +1305,9 @@ input, textarea, select { font: inherit; color: inherit; }
     padding: var(--s-4);
   }
   .delivery-form {
+    grid-template-columns: 1fr;
+  }
+  .delivery-choice > div {
     grid-template-columns: 1fr;
   }
   .delivery-sticky-cart {
