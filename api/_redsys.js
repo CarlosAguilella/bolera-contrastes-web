@@ -1,4 +1,7 @@
 const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
+const vm = require("vm");
 
 const SIGNATURE_VERSION = "HMAC_SHA256_V1";
 const CURRENCY_EUR = "978";
@@ -6,45 +9,37 @@ const TRANSACTION_AUTHORIZATION = "0";
 const DELIVERY_FEE_CENTS = 250;
 const DELIVERY_METHODS = new Set(["pickup", "delivery"]);
 const PAYMENT_METHODS = new Set(["redsys"]);
+const DEFAULT_DELIVERY_MINIMUM_CENTS = 0;
 
 const REDSYS_URLS = {
   test: "https://sis-t.redsys.es:25443/sis/realizarPago",
   prod: "https://sis.redsys.es/sis/realizarPago",
 };
 
-const MENU_ITEMS = {
-  p1: { id: "p1", name: "Croquetas de la abuela", priceCents: 750 },
-  p2: { id: "p2", name: "Patatas bravas", priceCents: 650 },
-  p3: { id: "p3", name: "Tabla ibérica", priceCents: 1450 },
-  p4: { id: "p4", name: "Calamares a la andaluza", priceCents: 950 },
-  p5: { id: "p5", name: "Ensaladilla rusa", priceCents: 700 },
-  p6: { id: "p6", name: "Hummus con verduras", priceCents: 650 },
-  b1: { id: "b1", name: "Tosta de salmón", priceCents: 850 },
-  b2: { id: "b2", name: "Bocadillo de calamares", priceCents: 750 },
-  b3: { id: "b3", name: "Bikini trufado", priceCents: 650 },
-  b4: { id: "b4", name: "Tosta vegana", priceCents: 700 },
-  h1: { id: "h1", name: "Smash Contrastes", priceCents: 1250 },
-  h2: { id: "h2", name: "Crispy Chicken", priceCents: 1150 },
-  h3: { id: "h3", name: "Veggie Beet", priceCents: 1100 },
-  t1: { id: "t1", name: "Paella valenciana", priceCents: 1500 },
-  t2: { id: "t2", name: "Fideuà de marisco", priceCents: 1600 },
-  t3: { id: "t3", name: "Tacos al pastor", priceCents: 950 },
-  t4: { id: "t4", name: "Pizza margherita", priceCents: 1000 },
-  e1: { id: "e1", name: "César de pollo", priceCents: 1050 },
-  e2: { id: "e2", name: "Burrata y tomate", priceCents: 1100 },
-  d1: { id: "d1", name: "Tostada con tomate", priceCents: 350 },
-  d2: { id: "d2", name: "Bowl de açaí", priceCents: 750 },
-  d3: { id: "d3", name: "Huevos benedict", priceCents: 900 },
-  c1: { id: "c1", name: "Café solo", priceCents: 150 },
-  c2: { id: "c2", name: "Flat white", priceCents: 280 },
-  c3: { id: "c3", name: "Matcha latte", priceCents: 400 },
-  cv1: { id: "cv1", name: "Caña de tirador", priceCents: 220 },
-  cv2: { id: "cv2", name: "IPA local 'Onda'", priceCents: 450 },
-  cv3: { id: "cv3", name: "Gin tonic premium", priceCents: 850 },
-  cv4: { id: "cv4", name: "Spritz Aperol", priceCents: 700 },
-  po1: { id: "po1", name: "Coulant de chocolate", priceCents: 550 },
-  po2: { id: "po2", name: "Tarta de queso", priceCents: 480 },
-};
+function loadMenuItems() {
+  const dataPath = path.join(__dirname, "..", "data.js");
+  const source = fs.readFileSync(dataPath, "utf8");
+  const sandbox = { window: {} };
+  vm.createContext(sandbox);
+  vm.runInContext(source, sandbox, { filename: "data.js", timeout: 1000 });
+
+  if (!Array.isArray(sandbox.window.BC_MENU)) {
+    throw new Error("No se pudo cargar la carta desde data.js.");
+  }
+
+  return Object.fromEntries(
+    sandbox.window.BC_MENU.map((item) => [
+      item.id,
+      {
+        id: item.id,
+        name: cleanText(item.name, 80),
+        priceCents: Math.round(Number(item.price || 0) * 100),
+      },
+    ])
+  );
+}
+
+const MENU_ITEMS = loadMenuItems();
 
 function cleanText(value, maxLength = 160) {
   return String(value || "")
@@ -52,6 +47,29 @@ function cleanText(value, maxLength = 160) {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, maxLength);
+}
+
+function parsePositiveInteger(value, fallback) {
+  const parsed = Number.parseInt(String(value || ""), 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function getOrderRules() {
+  return {
+    ordersEnabled: String(process.env.DELIVERY_ORDERS_ENABLED || "true").toLowerCase() !== "false",
+    deliveryMinimumCents: parsePositiveInteger(process.env.DELIVERY_MINIMUM_CENTS, DEFAULT_DELIVERY_MINIMUM_CENTS),
+    allowedDeliveryZones: String(process.env.DELIVERY_ALLOWED_ZONES || "")
+      .split(",")
+      .map((zone) => cleanText(zone, 80).toLowerCase())
+      .filter(Boolean),
+  };
+}
+
+function ensureOrdersEnabled() {
+  const rules = getOrderRules();
+  if (!rules.ordersEnabled) {
+    throw Object.assign(new Error("Los pedidos online no están disponibles en este momento."), { statusCode: 503 });
+  }
 }
 
 function isValidEmail(value) {
@@ -79,6 +97,7 @@ function validateCustomer(rawCustomer) {
 }
 
 function validateDelivery(rawDelivery) {
+  const rules = getOrderRules();
   const method = cleanText(rawDelivery?.method || "pickup", 20);
   if (!DELIVERY_METHODS.has(method)) {
     throw Object.assign(new Error("El método de entrega no es válido."), { statusCode: 400 });
@@ -92,6 +111,14 @@ function validateDelivery(rawDelivery) {
 
   if (delivery.method === "delivery" && delivery.address.length < 8) {
     throw Object.assign(new Error("Indica una dirección completa para entrega a domicilio."), { statusCode: 400 });
+  }
+
+  if (
+    delivery.method === "delivery" &&
+    rules.allowedDeliveryZones.length &&
+    !rules.allowedDeliveryZones.some((zone) => delivery.address.toLowerCase().includes(zone))
+  ) {
+    throw Object.assign(new Error("La dirección no está dentro de la zona de reparto configurada."), { statusCode: 400 });
   }
 
   if (delivery.method === "pickup") {
@@ -162,7 +189,7 @@ function base64UrlDecodeToString(value) {
 }
 
 function createMerchantParameters(params) {
-  return base64UrlEncode(JSON.stringify(params));
+  return base64Encode(JSON.stringify(params));
 }
 
 function decodeMerchantParameters(merchantParameters) {
@@ -195,7 +222,7 @@ function diversifyOperationKey(orderId, secretKey) {
 
 function signMerchantParameters(merchantParameters, orderId, secretKey) {
   const operationKey = diversifyOperationKey(orderId, secretKey);
-  return base64UrlEncode(crypto.createHmac("sha256", operationKey).update(merchantParameters, "utf8").digest());
+  return base64Encode(crypto.createHmac("sha256", operationKey).update(merchantParameters, "utf8").digest());
 }
 
 function normalizeSignature(signature) {
@@ -228,6 +255,7 @@ function generateOrderId() {
 }
 
 function validateAndPriceCart(rawCart, deliveryMethod = "pickup") {
+  const rules = getOrderRules();
   if (!Array.isArray(rawCart) || rawCart.length === 0) {
     throw Object.assign(new Error("El carrito está vacío."), { statusCode: 400 });
   }
@@ -263,6 +291,13 @@ function validateAndPriceCart(rawCart, deliveryMethod = "pickup") {
   const subtotalCents = lines.reduce((sum, line) => sum + line.subtotalCents, 0);
   const deliveryFeeCents = deliveryMethod === "delivery" && subtotalCents > 0 ? DELIVERY_FEE_CENTS : 0;
   const totalCents = subtotalCents + deliveryFeeCents;
+
+  if (deliveryMethod === "delivery" && subtotalCents < rules.deliveryMinimumCents) {
+    throw Object.assign(
+      new Error(`El pedido mínimo para entrega a domicilio es ${formatEuros(rules.deliveryMinimumCents)}.`),
+      { statusCode: 400 }
+    );
+  }
 
   if (totalCents < 100) {
     throw Object.assign(new Error("El importe mínimo del pedido es 1 €."), { statusCode: 400 });
@@ -686,7 +721,9 @@ module.exports = {
   cleanText,
   decodeMerchantData,
   decodeMerchantParameters,
+  ensureOrdersEnabled,
   generateOrderId,
+  getOrderRules,
   getParam,
   getRedsysConfig,
   isAuthorisedResponse,

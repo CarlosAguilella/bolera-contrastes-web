@@ -28,6 +28,9 @@ WHATSAPP_ACCESS_TOKEN=EAAG...
 WHATSAPP_PHONE_NUMBER_ID=1234567890
 WHATSAPP_KITCHEN_TO=34600000000
 WHATSAPP_GRAPH_VERSION=v23.0
+DELIVERY_ORDERS_ENABLED=true
+DELIVERY_MINIMUM_CENTS=0
+DELIVERY_ALLOWED_ZONES=Onda
 ```
 
 - `REDSYS_ENV`: usa `test` para los datos de pruebas de Sabadell/Redsys y `prod` cuando el banco active el TPV real.
@@ -44,12 +47,16 @@ WHATSAPP_GRAPH_VERSION=v23.0
 - WhatsApp Cloud API puede requerir conversación abierta o plantilla aprobada por Meta para mensajes iniciados por la empresa.
 - El webhook debe deduplicar por `orderId`, porque Redsys puede reintentar una notificación si no recibe respuesta correcta.
 - Sin webhook, `RESEND_API_KEY` ni WhatsApp Cloud API, el pago se verifica en Vercel, pero el bar no recibe un aviso automático.
+- `DELIVERY_ORDERS_ENABLED`: si está en `false`, el backend bloquea nuevos pedidos online.
+- `DELIVERY_MINIMUM_CENTS`: mínimo de subtotal para entrega a domicilio. `0` significa sin mínimo.
+- `DELIVERY_ALLOWED_ZONES`: lista separada por comas. Si se configura, la dirección de domicilio debe contener alguna zona.
 
 ## Seguridad aplicada
 
 - El navegador nunca ve la clave secreta de Redsys.
 - Se usa la integración clásica de Redsys para clave SHA256: `HMAC_SHA256_V1`, 3DES sobre número de pedido y HMAC SHA-256.
 - El importe se recalcula en `/api/redsys-create-order`; no se acepta el total enviado por el cliente.
+- El backend carga productos y precios desde `data.js`; la carta visible y el cálculo de pago comparten la misma fuente de precios.
 - El servidor valida contacto, método de entrega, dirección cuando hay domicilio, método de pago, cantidades, subtotal, gastos de entrega y total final.
 - La confirmación real se hace en `/api/redsys-notification`, verificando `Ds_Signature`.
 - La pantalla `/redsys-ok` no confirma por sí sola el pedido; solo informa al cliente tras volver de Redsys.

@@ -1,6 +1,7 @@
 const {
   buildOrderPayment,
   cleanText,
+  ensureOrdersEnabled,
   generateOrderId,
   readRequestBody,
   validateCustomer,
@@ -16,6 +17,7 @@ module.exports = async function handler(req, res) {
   }
 
   try {
+    ensureOrdersEnabled();
     const body = await readRequestBody(req);
     const customer = validateCustomer(body.customer);
     const delivery = validateDelivery(body.delivery || {
