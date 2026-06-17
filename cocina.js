@@ -27,6 +27,8 @@
   const pinInput = document.getElementById("kitchen-pin");
   const toolbar = document.getElementById("kitchen-toolbar");
   const refreshButton = document.getElementById("kitchen-refresh");
+  const testOrderButton = document.getElementById("kitchen-test-order");
+  const testEmailButton = document.getElementById("kitchen-test-email");
   const ordersEl = document.getElementById("kitchen-orders");
   const statusEl = document.getElementById("kitchen-status");
   const countEl = document.getElementById("kitchen-count");
@@ -157,6 +159,29 @@
     await loadOrders();
   }
 
+  async function testKitchenOrder() {
+    setStatus("Probando pedido…", "loading");
+    const payload = await api("/api/test-kitchen-order", { method: "POST" });
+    if (!payload.storage || !payload.storage.saved) {
+      showWarning(`No se pudo guardar el pedido de prueba: ${payload.storage?.reason || "falta Supabase"}.`);
+      setStatus("Conectado", "ok");
+      return;
+    }
+    showWarning("Pedido de prueba creado. Debe aparecer en la lista y puede archivarse con Cancelar.");
+    await loadOrders();
+  }
+
+  async function testEmail() {
+    setStatus("Enviando email…", "loading");
+    const payload = await api("/api/test-order-email", { method: "POST" });
+    if (!payload.email || !payload.email.sent) {
+      showWarning(`Email no enviado: ${payload.email?.reason || "falta configurar Gmail"}.`);
+    } else {
+      showWarning("Email de prueba enviado. Revisa la bandeja de entrada del correo configurado.");
+    }
+    setStatus("Conectado", "ok");
+  }
+
   login.addEventListener("submit", (event) => {
     event.preventDefault();
     state.pin = pinInput.value.trim();
@@ -167,6 +192,18 @@
   });
 
   refreshButton.addEventListener("click", loadOrders);
+  testOrderButton.addEventListener("click", () => {
+    testKitchenOrder().catch((error) => {
+      setStatus("Error", "error");
+      showWarning(error.message);
+    });
+  });
+  testEmailButton.addEventListener("click", () => {
+    testEmail().catch((error) => {
+      setStatus("Error", "error");
+      showWarning(error.message);
+    });
+  });
   ordersEl.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-order][data-status]");
     if (!button) return;

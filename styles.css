@@ -1436,6 +1436,12 @@ input, textarea, select { font: inherit; color: inherit; }
   gap: var(--s-3);
   align-items: center;
 }
+.kitchen-actions {
+  display: flex;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
 .kitchen-toolbar strong,
 .kitchen-toolbar span {
   display: block;
@@ -1575,6 +1581,12 @@ input, textarea, select { font: inherit; color: inherit; }
   .kitchen-login,
   .kitchen-toolbar {
     display: grid;
+  }
+  .kitchen-actions {
+    justify-content: stretch;
+  }
+  .kitchen-actions .btn {
+    width: 100%;
   }
   .kitchen-grid {
     grid-template-columns: 1fr;

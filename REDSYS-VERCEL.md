@@ -104,6 +104,8 @@ curl -X POST https://bolera-contrastes-web.vercel.app/api/test-order-email \
   -H "x-kitchen-pin: TU_PIN"
 ```
 
+También puedes hacerlo desde `/cocina` con el botón `Probar email`.
+
 ## Panel de cocina
 
 El panel interno está en:
@@ -146,6 +148,7 @@ create index if not exists kitchen_orders_created_at_idx on public.kitchen_order
 - Los pedidos que caen a modo pendiente/no cobrado entran como `pending_payment` y el panel muestra `NO COCINAR todavía`.
 - Cocina puede cambiar estados: aceptado, en cocina, listo, entregado o cancelado.
 - Si Supabase no está configurado, el panel se abre pero avisa de que no hay almacenamiento; email/WhatsApp siguen siendo el respaldo operativo si están configurados.
+- Desde `/cocina`, el botón `Probar pedido` crea un pedido ficticio en Supabase para comprobar que la pantalla funciona antes de aceptar pedidos reales.
 
 ## Flujo
 
