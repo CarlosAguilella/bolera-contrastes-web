@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta name="robots" content="noindex,nofollow"/>
+  <meta name="theme-color" content="#C8552B"/>
+  <title>Cocina — Bolera Contrastes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300..700&display=swap"/>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+  <main class="kitchen-page">
+    <section class="bc-container kitchen-shell">
+      <header class="kitchen-hero">
+        <div>
+          <span class="eyebrow">Panel interno</span>
+          <h1>Cocina</h1>
+          <p>Pedidos online verificados y pendientes, en una pantalla simple para barra y cocina.</p>
+        </div>
+        <div class="kitchen-status" id="kitchen-status">Sin conectar</div>
+      </header>
+
+      <form class="kitchen-login" id="kitchen-login">
+        <label>
+          PIN de cocina
+          <input id="kitchen-pin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="1998"/>
+        </label>
+        <button class="btn btn-primary" type="submit">Entrar</button>
+      </form>
+
+      <section class="kitchen-toolbar" id="kitchen-toolbar" hidden>
+        <div>
+          <strong id="kitchen-count">0 pedidos</strong>
+          <span id="kitchen-updated">Pendiente de cargar</span>
+        </div>
+        <button class="btn btn-secondary btn-sm" type="button" id="kitchen-refresh">Actualizar</button>
+      </section>
+
+      <div class="kitchen-warning" id="kitchen-warning" hidden></div>
+      <section class="kitchen-grid" id="kitchen-orders"></section>
+    </section>
+  </main>
+
+  <script src="cocina.js"></script>
+</body>
+</html>

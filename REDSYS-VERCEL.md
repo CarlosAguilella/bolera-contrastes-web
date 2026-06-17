@@ -31,6 +31,10 @@ WHATSAPP_GRAPH_VERSION=v23.0
 DELIVERY_ORDERS_ENABLED=true
 DELIVERY_MINIMUM_CENTS=0
 DELIVERY_ALLOWED_ZONES=Onda
+KITCHEN_PIN=CAMBIA_ESTE_PIN
+SUPABASE_URL=https://xxxxx.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+KITCHEN_ORDERS_TABLE=kitchen_orders
 ```
 
 - `REDSYS_ENV`: usa `test` para los datos de pruebas de Sabadell/Redsys y `prod` cuando el banco active el TPV real.
@@ -50,6 +54,10 @@ DELIVERY_ALLOWED_ZONES=Onda
 - `DELIVERY_ORDERS_ENABLED`: si está en `false`, el backend bloquea nuevos pedidos online.
 - `DELIVERY_MINIMUM_CENTS`: mínimo de subtotal para entrega a domicilio. `0` significa sin mínimo.
 - `DELIVERY_ALLOWED_ZONES`: lista separada por comas. Si se configura, la dirección de domicilio debe contener alguna zona.
+- `KITCHEN_PIN`: PIN interno para entrar al panel `/cocina`. Cámbialo antes de usarlo en el local.
+- `SUPABASE_URL`: URL del proyecto Supabase que guardará los pedidos para cocina.
+- `SUPABASE_SERVICE_ROLE_KEY`: clave server-side de Supabase. Solo debe estar en Vercel, nunca en frontend.
+- `KITCHEN_ORDERS_TABLE`: tabla de pedidos de cocina. Por defecto `kitchen_orders`.
 
 ## Seguridad aplicada
 
@@ -64,10 +72,54 @@ DELIVERY_ALLOWED_ZONES=Onda
 - El WhatsApp automático a cocina solo se manda después de verificar firma y respuesta autorizada de Redsys.
 - El envío usa `Idempotency-Key` con el número de pedido para reducir duplicados si Redsys reintenta la notificación.
 - Si un webhook de confirmación falla, la API devuelve error para que Redsys pueda reintentar la notificación.
+- El panel `/cocina` pide PIN y llama a `/api/kitchen-orders`; la clave de Supabase queda solo en servidor.
 
 ## Respaldo manual de cocina
 
 La página `/redsys-ok` muestra un botón de WhatsApp con el pedido guardado en el navegador antes de redirigir a Redsys. Es un respaldo operativo; la confirmación fiable sigue siendo la notificación servidor-servidor de Redsys.
+
+## Panel de cocina
+
+El panel interno está en:
+
+```txt
+https://bolera-contrastes-web.vercel.app/cocina
+```
+
+Para que el panel reciba pedidos en tiempo real razonable, crea una tabla en Supabase y añade las variables `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `KITCHEN_ORDERS_TABLE` y `KITCHEN_PIN` en Vercel.
+
+SQL recomendado:
+
+```sql
+create table if not exists public.kitchen_orders (
+  order_id text primary key,
+  status text not null default 'paid',
+  source text,
+  payment_status text,
+  amount_cents integer not null default 0,
+  subtotal_cents integer not null default 0,
+  delivery_fee_cents integer not null default 0,
+  customer_name text,
+  customer_phone text,
+  customer_email text,
+  delivery_method text,
+  delivery_detail text,
+  notes text,
+  items jsonb not null default '[]'::jsonb,
+  raw_payload jsonb,
+  paid_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists kitchen_orders_status_idx on public.kitchen_orders(status);
+create index if not exists kitchen_orders_created_at_idx on public.kitchen_orders(created_at desc);
+```
+
+- Los pedidos pagados por Redsys entran como `paid` tras verificar la firma de Redsys.
+- Los pedidos que caen a modo pendiente/no cobrado entran como `pending_payment` y el panel muestra `NO COCINAR todavía`.
+- Cocina puede cambiar estados: aceptado, en cocina, listo, entregado o cancelado.
+- Si Supabase no está configurado, el panel se abre pero avisa de que no hay almacenamiento; email/WhatsApp siguen siendo el respaldo operativo si están configurados.
 
 ## Flujo
 

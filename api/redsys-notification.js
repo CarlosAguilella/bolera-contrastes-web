@@ -1,4 +1,8 @@
 const {
+  buildKitchenOrderFromPayment,
+  saveKitchenOrder,
+} = require("./_kitchen");
+const {
   SIGNATURE_VERSION,
   buildWebhookPayload,
   decodeMerchantData,
@@ -66,6 +70,11 @@ module.exports = async function handler(req, res) {
     }
 
     if (authorised) {
+      try {
+        await saveKitchenOrder(buildKitchenOrderFromPayment(payload, "paid"));
+      } catch (storageError) {
+        console.error("No se pudo registrar el pedido pagado en cocina.", storageError);
+      }
       await sendPaidOrderEmail(config, payload);
       await sendKitchenWhatsApp(config, payload);
     }

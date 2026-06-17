@@ -1,4 +1,8 @@
 const {
+  buildKitchenOrderFromCreatedOrder,
+  saveKitchenOrder,
+} = require("./_kitchen");
+const {
   buildOrderPayment,
   cleanText,
   ensureOrdersEnabled,
@@ -41,6 +45,16 @@ module.exports = async function handler(req, res) {
     };
 
     const payment = buildOrderPayment(order, req);
+    let kitchenStorage = { saved: false };
+
+    if (payment.provider === "demo") {
+      try {
+        kitchenStorage = await saveKitchenOrder(buildKitchenOrderFromCreatedOrder(order, payment));
+      } catch (storageError) {
+        console.error("No se pudo registrar el pedido pendiente en cocina.", storageError);
+        kitchenStorage = { saved: false, error: "kitchen_storage_failed" };
+      }
+    }
 
     return res.status(200).json({
       ok: true,
@@ -53,6 +67,7 @@ module.exports = async function handler(req, res) {
       paymentUrl: payment.paymentUrl,
       fields: payment.fields,
       redirectUrl: payment.redirectUrl,
+      kitchenStorage,
     });
   } catch (error) {
     const statusCode = error.statusCode || 500;
