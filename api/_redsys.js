@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const tls = require("tls");
 const vm = require("vm");
 
 const SIGNATURE_VERSION = "HMAC_SHA256_V1";
@@ -157,8 +158,12 @@ function getRedsysConfig() {
     merchantName: cleanText(process.env.REDSYS_MERCHANT_NAME || "Bolera Contrastes", 25),
     confirmationWebhookUrl: cleanText(process.env.REDSYS_CONFIRMATION_WEBHOOK_URL || "", 500),
     notificationEmail: cleanText(process.env.REDSYS_NOTIFICATION_EMAIL || "caguilellat14@gmail.com", 200),
+    emailProvider: cleanText(process.env.EMAIL_PROVIDER || "auto", 20).toLowerCase(),
     resendApiKey: String(process.env.RESEND_API_KEY || "").trim(),
     emailFrom: cleanText(process.env.RESEND_FROM || "Bolera Contrastes <onboarding@resend.dev>", 200),
+    gmailUser: cleanText(process.env.GMAIL_USER || "", 200),
+    gmailAppPassword: String(process.env.GMAIL_APP_PASSWORD || "").replace(/\s+/g, "").trim(),
+    gmailFrom: cleanText(process.env.GMAIL_FROM || "", 200),
     whatsappAccessToken: String(process.env.WHATSAPP_ACCESS_TOKEN || "").trim(),
     whatsappPhoneNumberId: cleanText(process.env.WHATSAPP_PHONE_NUMBER_ID || "", 80),
     whatsappKitchenTo: cleanText(process.env.WHATSAPP_KITCHEN_TO || "", 30).replace(/\D/g, ""),
@@ -681,17 +686,171 @@ async function sendKitchenWhatsApp(config, payload) {
   return { sent: true };
 }
 
-async function sendPaidOrderEmail(config, payload) {
-  if (!config.resendApiKey) return { sent: false, reason: "missing RESEND_API_KEY" };
-  if (!config.notificationEmail) return { sent: false, reason: "missing REDSYS_NOTIFICATION_EMAIL" };
+function splitEmails(value) {
+  return String(value || "")
+    .split(/[;,]/)
+    .map((email) => cleanText(email, 200))
+    .filter(Boolean);
+}
 
-  const email = buildPaidOrderEmail(payload);
+function sanitizeHeader(value) {
+  return String(value || "").replace(/[\r\n]+/g, " ").trim();
+}
+
+function encodeMimeHeader(value) {
+  const safeValue = sanitizeHeader(value);
+  return /[^\x20-\x7E]/.test(safeValue)
+    ? `=?UTF-8?B?${Buffer.from(safeValue, "utf8").toString("base64")}?=`
+    : safeValue;
+}
+
+function createMimeMessage({ from, to, subject, text, html }) {
+  const boundary = `bc_${crypto.randomBytes(12).toString("hex")}`;
+  const fallbackHtml = `<pre style="white-space:pre-wrap;font-family:Arial,sans-serif;">${escapeHtml(text || "")}</pre>`;
+  return [
+    `From: ${sanitizeHeader(from)}`,
+    `To: ${to.map(sanitizeHeader).join(", ")}`,
+    `Subject: ${encodeMimeHeader(subject)}`,
+    `Date: ${new Date().toUTCString()}`,
+    `Message-ID: <${Date.now()}.${crypto.randomBytes(8).toString("hex")}@bolera-contrastes-web>`,
+    "MIME-Version: 1.0",
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    "",
+    `--${boundary}`,
+    "Content-Type: text/plain; charset=UTF-8",
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    text || "",
+    `--${boundary}`,
+    "Content-Type: text/html; charset=UTF-8",
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    html || fallbackHtml,
+    `--${boundary}--`,
+    "",
+  ].join("\r\n");
+}
+
+function readSmtpResponse(socket) {
+  return new Promise((resolve, reject) => {
+    let data = "";
+    const cleanup = () => {
+      socket.off("data", onData);
+      socket.off("error", onError);
+      socket.off("timeout", onTimeout);
+    };
+    const onData = (chunk) => {
+      data += chunk.toString("utf8");
+      const lines = data.split(/\r?\n/).filter(Boolean);
+      const last = lines[lines.length - 1] || "";
+      if (/^\d{3} /.test(last)) {
+        cleanup();
+        resolve({ code: Number(last.slice(0, 3)), raw: data });
+      }
+    };
+    const onError = (error) => {
+      cleanup();
+      reject(error);
+    };
+    const onTimeout = () => {
+      cleanup();
+      reject(new Error("Timeout enviando email por Gmail SMTP."));
+    };
+    socket.on("data", onData);
+    socket.once("error", onError);
+    socket.once("timeout", onTimeout);
+  });
+}
+
+async function sendSmtpCommand(socket, command, expectedCodes) {
+  if (command) socket.write(`${command}\r\n`);
+  const response = await readSmtpResponse(socket);
+  if (!expectedCodes.includes(response.code)) {
+    const error = new Error("Gmail SMTP rechazó el envío del email.");
+    error.details = response.raw.slice(0, 500);
+    throw error;
+  }
+  return response;
+}
+
+function connectGmailSmtp() {
+  return new Promise((resolve, reject) => {
+    const socket = tls.connect({
+      host: "smtp.gmail.com",
+      port: 465,
+      servername: "smtp.gmail.com",
+    });
+    const cleanup = () => {
+      socket.off("error", onError);
+      socket.off("timeout", onTimeout);
+    };
+    const onError = (error) => {
+      cleanup();
+      reject(error);
+    };
+    const onTimeout = () => {
+      cleanup();
+      reject(new Error("Timeout conectando con Gmail SMTP."));
+    };
+    socket.setTimeout(20000);
+    socket.once("secureConnect", () => {
+      cleanup();
+      resolve(socket);
+    });
+    socket.once("error", onError);
+    socket.once("timeout", onTimeout);
+  });
+}
+
+async function sendEmailWithGmail(config, email) {
+  if (!config.gmailUser || !config.gmailAppPassword) {
+    return { sent: false, reason: "missing GMAIL_USER or GMAIL_APP_PASSWORD" };
+  }
+
+  const recipients = splitEmails(config.notificationEmail);
+  if (!recipients.length) return { sent: false, reason: "missing REDSYS_NOTIFICATION_EMAIL" };
+
+  const from = config.gmailFrom || `Bolera Contrastes <${config.gmailUser}>`;
+  const message = createMimeMessage({
+    from,
+    to: recipients,
+    subject: email.subject,
+    text: email.text,
+    html: email.html,
+  });
+  const dotStuffedMessage = message.replace(/\r?\n/g, "\r\n").replace(/^\./gm, "..");
+  const socket = await connectGmailSmtp();
+
+  try {
+    await sendSmtpCommand(socket, null, [220]);
+    await sendSmtpCommand(socket, "EHLO bolera-contrastes-web.vercel.app", [250]);
+    await sendSmtpCommand(socket, "AUTH LOGIN", [334]);
+    await sendSmtpCommand(socket, Buffer.from(config.gmailUser).toString("base64"), [334]);
+    await sendSmtpCommand(socket, Buffer.from(config.gmailAppPassword).toString("base64"), [235]);
+    await sendSmtpCommand(socket, `MAIL FROM:<${config.gmailUser}>`, [250]);
+    for (const recipient of recipients) {
+      await sendSmtpCommand(socket, `RCPT TO:<${recipient}>`, [250, 251]);
+    }
+    await sendSmtpCommand(socket, "DATA", [354]);
+    socket.write(`${dotStuffedMessage}\r\n.\r\n`);
+    await sendSmtpCommand(socket, null, [250]);
+    await sendSmtpCommand(socket, "QUIT", [221]);
+  } finally {
+    socket.end();
+  }
+
+  return { sent: true, provider: "gmail" };
+}
+
+async function sendEmailWithResend(config, email, orderId) {
+  if (!config.resendApiKey) return { sent: false, reason: "missing RESEND_API_KEY" };
+
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${config.resendApiKey}`,
       "Content-Type": "application/json",
-      "Idempotency-Key": `bolera-redsys-${payload.orderId || "sin-pedido"}`,
+      "Idempotency-Key": `bolera-redsys-${orderId || "sin-pedido"}`,
     },
     body: JSON.stringify({
       from: config.emailFrom,
@@ -711,6 +870,19 @@ async function sendPaidOrderEmail(config, payload) {
   }
 
   return { sent: true };
+}
+
+async function sendPaidOrderEmail(config, payload) {
+  if (!config.notificationEmail) return { sent: false, reason: "missing REDSYS_NOTIFICATION_EMAIL" };
+
+  const email = buildPaidOrderEmail(payload);
+
+  if (config.emailProvider === "gmail") return sendEmailWithGmail(config, email);
+  if (config.emailProvider === "resend") return sendEmailWithResend(config, email, payload.orderId);
+  if (config.gmailUser && config.gmailAppPassword) return sendEmailWithGmail(config, email);
+  if (config.resendApiKey) return sendEmailWithResend(config, email, payload.orderId);
+
+  return { sent: false, reason: "missing email provider config" };
 }
 
 module.exports = {

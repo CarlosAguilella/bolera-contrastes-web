@@ -22,6 +22,10 @@ Opcionales:
 ```txt
 REDSYS_CONFIRMATION_WEBHOOK_URL=https://tu-webhook-de-confirmacion
 REDSYS_NOTIFICATION_EMAIL=caguilellat14@gmail.com
+EMAIL_PROVIDER=gmail
+GMAIL_USER=tu-gmail@gmail.com
+GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
+GMAIL_FROM=Bolera Contrastes <tu-gmail@gmail.com>
 RESEND_API_KEY=re_xxxxxxxxx
 RESEND_FROM=Bolera Contrastes <pedidos@tudominio.com>
 WHATSAPP_ACCESS_TOKEN=EAAG...
@@ -42,6 +46,10 @@ KITCHEN_ORDERS_TABLE=kitchen_orders
 - `REDSYS_PRODUCTION_READY`: debe estar en `true` para enviar clientes a Redsys producción. Si `REDSYS_ENV=prod` y no está en `true`, el sistema muestra pedido pendiente/no cobrado para evitar errores públicos como `SIS0042`.
 - `REDSYS_CONFIRMATION_WEBHOOK_URL`: URL que recibirá los pedidos pagados y verificados para avisar al bar o conectarlo con otra herramienta.
 - `REDSYS_NOTIFICATION_EMAIL`: correo que recibirá el aviso cuando Redsys confirme un pago.
+- `EMAIL_PROVIDER`: usa `gmail` para enviar pedidos desde Gmail. También admite `resend` o `auto`.
+- `GMAIL_USER`: cuenta Gmail que enviará los avisos.
+- `GMAIL_APP_PASSWORD`: contraseña de aplicación de Gmail, no la contraseña normal de la cuenta.
+- `GMAIL_FROM`: remitente visible en el correo. Debe usar la misma cuenta Gmail o un alias autorizado.
 - `RESEND_API_KEY`: clave API de Resend para enviar emails desde servidor.
 - `RESEND_FROM`: remitente verificado en Resend. Para producción conviene usar un dominio propio verificado.
 - `WHATSAPP_ACCESS_TOKEN`: token permanente de WhatsApp Business Cloud API.
@@ -50,7 +58,7 @@ KITCHEN_ORDERS_TABLE=kitchen_orders
 - `WHATSAPP_GRAPH_VERSION`: versión de Graph API. Si Meta cambia versión, se actualiza aquí sin tocar código.
 - WhatsApp Cloud API puede requerir conversación abierta o plantilla aprobada por Meta para mensajes iniciados por la empresa.
 - El webhook debe deduplicar por `orderId`, porque Redsys puede reintentar una notificación si no recibe respuesta correcta.
-- Sin webhook, `RESEND_API_KEY` ni WhatsApp Cloud API, el pago se verifica en Vercel, pero el bar no recibe un aviso automático.
+- Sin webhook, Gmail/Resend ni WhatsApp Cloud API, el pago se verifica en Vercel, pero el bar no recibe un aviso automático.
 - `DELIVERY_ORDERS_ENABLED`: si está en `false`, el backend bloquea nuevos pedidos online.
 - `DELIVERY_MINIMUM_CENTS`: mínimo de subtotal para entrega a domicilio. `0` significa sin mínimo.
 - `DELIVERY_ALLOWED_ZONES`: lista separada por comas. Si se configura, la dirección de domicilio debe contener alguna zona.
@@ -77,6 +85,24 @@ KITCHEN_ORDERS_TABLE=kitchen_orders
 ## Respaldo manual de cocina
 
 La página `/redsys-ok` muestra un botón de WhatsApp con el pedido guardado en el navegador antes de redirigir a Redsys. Es un respaldo operativo; la confirmación fiable sigue siendo la notificación servidor-servidor de Redsys.
+
+## Gmail para avisos de pedidos
+
+Para recibir pedidos en Gmail tras un pago confirmado:
+
+1. Activa la verificación en dos pasos en la cuenta Gmail.
+2. En Google Account → Seguridad → Contraseñas de aplicaciones, crea una contraseña para `Mail`.
+3. En Vercel añade `EMAIL_PROVIDER=gmail`, `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `GMAIL_FROM` y `REDSYS_NOTIFICATION_EMAIL`.
+4. Haz redeploy del proyecto.
+
+El correo se envía desde servidor en `/api/redsys-notification`, solo cuando Redsys confirma el pago con firma válida. Las credenciales de Gmail no se cargan nunca en el navegador.
+
+Para probar el envío sin hacer un pago real, después de configurar `KITCHEN_PIN`:
+
+```bash
+curl -X POST https://bolera-contrastes-web.vercel.app/api/test-order-email \
+  -H "x-kitchen-pin: TU_PIN"
+```
 
 ## Panel de cocina
 
