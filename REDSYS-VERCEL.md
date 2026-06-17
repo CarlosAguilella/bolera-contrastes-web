@@ -54,7 +54,7 @@ KITCHEN_ORDERS_TABLE=kitchen_orders
 - `DELIVERY_ORDERS_ENABLED`: si está en `false`, el backend bloquea nuevos pedidos online.
 - `DELIVERY_MINIMUM_CENTS`: mínimo de subtotal para entrega a domicilio. `0` significa sin mínimo.
 - `DELIVERY_ALLOWED_ZONES`: lista separada por comas. Si se configura, la dirección de domicilio debe contener alguna zona.
-- `KITCHEN_PIN`: PIN interno para entrar al panel `/cocina`. Cámbialo antes de usarlo en el local.
+- `KITCHEN_PIN`: PIN interno obligatorio para entrar al panel `/cocina`.
 - `SUPABASE_URL`: URL del proyecto Supabase que guardará los pedidos para cocina.
 - `SUPABASE_SERVICE_ROLE_KEY`: clave server-side de Supabase. Solo debe estar en Vercel, nunca en frontend.
 - `KITCHEN_ORDERS_TABLE`: tabla de pedidos de cocina. Por defecto `kitchen_orders`.

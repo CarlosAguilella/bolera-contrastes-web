@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
-const DEFAULT_KITCHEN_PIN = "1998";
+const DEFAULT_KITCHEN_PIN = "";
 let cachedMenuItems = null;
 
 function cleanText(value, maxLength = 300) {
