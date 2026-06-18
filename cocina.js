@@ -3,18 +3,24 @@
     pending_payment: "Pendiente / no cobrado",
     paid: "Pagado",
     accepted: "Aceptado",
-    preparing: "En cocina",
-    ready: "Listo",
+    preparing: "Haciendo",
+    ready: "Hecho",
     completed: "Entregado",
     cancelled: "Cancelado",
+    refunded: "Devolución",
     created: "Creado",
   };
 
-  const terminalStatuses = new Set(["completed", "cancelled"]);
+  const terminalStatuses = new Set(["completed", "cancelled", "refunded"]);
+  const demoStorageKey = "bc-kitchen-demo-orders";
+  const params = new URLSearchParams(window.location.search);
+  const isLocalHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
 
   const state = {
     pin: localStorage.getItem("bc-kitchen-pin") || "",
     filter: ["active", "all"].includes(localStorage.getItem("bc-kitchen-filter")) ? localStorage.getItem("bc-kitchen-filter") : "active",
+    demoMode: params.get("demo") === "1" || (isLocalHost && params.get("demo") !== "0"),
+    demoOrders: [],
     knownOrderIds: new Set(),
     firstLoadDone: false,
     timer: null,
@@ -35,6 +41,7 @@
   const updatedEl = document.getElementById("kitchen-updated");
   const warningEl = document.getElementById("kitchen-warning");
 
+  if (state.demoMode && !state.pin) state.pin = "demo";
   if (state.pin) pinInput.value = state.pin;
   setActiveFilter(state.filter);
   document.addEventListener("pointerdown", () => {
@@ -79,17 +86,132 @@
       return [
         { status: "accepted", label: "Aceptar" },
         { status: "cancelled", label: "Cancelar" },
+        { status: "refunded", label: "Devolución" },
       ];
     }
     if (status === "accepted") {
       return [
-        { status: "preparing", label: "Pasar a cocina" },
+        { status: "preparing", label: "Haciendo" },
         { status: "cancelled", label: "Cancelar" },
+        { status: "refunded", label: "Devolución" },
       ];
     }
-    if (status === "preparing") return [{ status: "ready", label: "Marcar listo" }];
-    if (status === "ready") return [{ status: "completed", label: "Entregado" }];
+    if (status === "preparing") {
+      return [
+        { status: "ready", label: "Hecho" },
+        { status: "cancelled", label: "Cancelar" },
+        { status: "refunded", label: "Devolución" },
+      ];
+    }
+    if (status === "ready") {
+      return [
+        { status: "completed", label: "Entregado" },
+        { status: "refunded", label: "Devolución" },
+      ];
+    }
+    if (status === "completed") return [{ status: "refunded", label: "Devolución" }];
     return [];
+  }
+
+  function buildDemoOrders() {
+    const now = Date.now();
+    return [
+      {
+        order_id: "DEMO-1042",
+        status: "paid",
+        source: "demo",
+        payment_status: "paid",
+        amount_cents: 2150,
+        subtotal_cents: 1900,
+        delivery_fee_cents: 250,
+        customer_name: "Laura Martí",
+        customer_phone: "600111222",
+        customer_email: "laura@example.com",
+        delivery_method: "delivery",
+        delivery_detail: "C/ San Miguel 14, 2º · Onda",
+        notes: "Sin cebolla. Llamar al llegar.",
+        created_at: new Date(now - 4 * 60000).toISOString(),
+        updated_at: new Date(now - 4 * 60000).toISOString(),
+        items: [
+          { id: "p2", name: "Patatas bravas", qty: 2, unitPriceCents: 650, subtotalCents: 1300 },
+          { id: "b3", name: "Bikini trufado", qty: 1, unitPriceCents: 650, subtotalCents: 650 },
+        ],
+      },
+      {
+        order_id: "DEMO-1041",
+        status: "preparing",
+        source: "demo",
+        payment_status: "paid",
+        amount_cents: 1450,
+        subtotal_cents: 1450,
+        delivery_fee_cents: 0,
+        customer_name: "Miguel Torres",
+        customer_phone: "611333444",
+        customer_email: "",
+        delivery_method: "pickup",
+        delivery_detail: "Recogida en 20 minutos",
+        notes: "Mesa de fuera si está libre.",
+        created_at: new Date(now - 13 * 60000).toISOString(),
+        updated_at: new Date(now - 8 * 60000).toISOString(),
+        items: [
+          { id: "p1", name: "Croquetas de la abuela", qty: 1, unitPriceCents: 750, subtotalCents: 750 },
+          { id: "p6", name: "Hummus con verduras", qty: 1, unitPriceCents: 650, subtotalCents: 650 },
+        ],
+      },
+      {
+        order_id: "DEMO-1040",
+        status: "ready",
+        source: "demo",
+        payment_status: "paid",
+        amount_cents: 950,
+        subtotal_cents: 950,
+        delivery_fee_cents: 0,
+        customer_name: "Ana Beltrán",
+        customer_phone: "622555666",
+        customer_email: "",
+        delivery_method: "pickup",
+        delivery_detail: "Lo antes posible",
+        notes: "Extra salsa brava.",
+        created_at: new Date(now - 22 * 60000).toISOString(),
+        updated_at: new Date(now - 3 * 60000).toISOString(),
+        items: [
+          { id: "p4", name: "Calamares a la andaluza", qty: 1, unitPriceCents: 950, subtotalCents: 950 },
+        ],
+      },
+      {
+        order_id: "DEMO-1039",
+        status: "refunded",
+        source: "demo",
+        payment_status: "refunded",
+        amount_cents: 750,
+        subtotal_cents: 750,
+        delivery_fee_cents: 0,
+        customer_name: "Pedido devuelto",
+        customer_phone: "633777888",
+        customer_email: "",
+        delivery_method: "pickup",
+        delivery_detail: "Archivado en devoluciones",
+        notes: "Ejemplo visible en filtro Todos.",
+        created_at: new Date(now - 50 * 60000).toISOString(),
+        updated_at: new Date(now - 35 * 60000).toISOString(),
+        items: [
+          { id: "p3", name: "Tabla ibérica", qty: 1, unitPriceCents: 750, subtotalCents: 750 },
+        ],
+      },
+    ];
+  }
+
+  function readDemoOrders() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(demoStorageKey) || "[]");
+      return Array.isArray(saved) && saved.length ? saved : buildDemoOrders();
+    } catch (error) {
+      return buildDemoOrders();
+    }
+  }
+
+  function writeDemoOrders() {
+    localStorage.setItem(demoStorageKey, JSON.stringify(state.demoOrders));
   }
 
   function playNotificationSound(count) {
@@ -170,7 +292,7 @@
       const actions = getOrderActions(status, isPending);
       const elapsed = formatElapsed(order.created_at || order.paid_at || order.updated_at);
       return `
-        <article class="kitchen-card ${isPending ? "is-pending" : ""}">
+        <article class="kitchen-card ${isPending ? "is-pending" : ""} ${status === "refunded" ? "is-refunded" : ""}">
           <header>
             <div>
               <span class="eyebrow">#${escapeHtml(order.order_id)}</span>
@@ -187,6 +309,7 @@
           <p class="kitchen-detail">${escapeHtml(order.delivery_detail || "Sin detalle de entrega")}</p>
           ${order.notes ? `<p class="kitchen-notes">Notas: ${escapeHtml(order.notes)}</p>` : ""}
           ${isPending ? '<div class="kitchen-alert">NO COCINAR todavía: pedido pendiente de confirmación/pago.</div>' : ""}
+          ${status === "refunded" ? '<div class="kitchen-alert is-refund">DEVOLUCIÓN: pedido marcado para revisar/cerrar caja.</div>' : ""}
           <ul class="kitchen-items">${renderItems(order.items)}</ul>
           <footer>
             ${actions.length ? actions.map((action) => `
@@ -203,6 +326,17 @@
   async function loadOrders() {
     if (!state.pin) return;
     setStatus("Cargando…", "loading");
+    if (state.demoMode) {
+      toolbar.hidden = false;
+      if (!state.demoOrders.length) {
+        state.demoOrders = readDemoOrders();
+        writeDemoOrders();
+      }
+      showWarning("Modo demo local: estos pedidos son ficticios y sirven para probar cocina, estados y devoluciones.");
+      renderOrders(state.demoOrders);
+      setStatus("Demo local", "ok");
+      return;
+    }
     try {
       const payload = await api("/api/kitchen-orders?limit=60", { method: "GET" });
       toolbar.hidden = false;
@@ -233,6 +367,22 @@
 
   async function updateStatus(orderId, status) {
     setStatus("Guardando…", "loading");
+    if (state.demoMode) {
+      state.demoOrders = state.demoOrders.map((order) => {
+        if (order.order_id !== orderId) return order;
+        return {
+          ...order,
+          status,
+          payment_status: status === "refunded" ? "refunded" : order.payment_status,
+          updated_at: new Date().toISOString(),
+        };
+      });
+      writeDemoOrders();
+      renderOrders(state.demoOrders);
+      showWarning(`Pedido ${orderId} marcado como ${statusLabels[status] || status}.`);
+      setStatus("Demo local", "ok");
+      return;
+    }
     await api("/api/kitchen-orders", {
       method: "PATCH",
       body: JSON.stringify({ orderId, status }),
@@ -242,6 +392,22 @@
 
   async function testKitchenOrder() {
     setStatus("Probando pedido…", "loading");
+    if (state.demoMode) {
+      const demoOrder = {
+        ...buildDemoOrders()[0],
+        order_id: `DEMO-${Math.floor(2000 + Math.random() * 7000)}`,
+        customer_name: "Nuevo pedido demo",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      state.demoOrders = [demoOrder, ...state.demoOrders];
+      writeDemoOrders();
+      showWarning("Nuevo pedido demo creado.");
+      playNotificationSound(1);
+      renderOrders(state.demoOrders);
+      setStatus("Demo local", "ok");
+      return;
+    }
     const payload = await api("/api/test-kitchen-order", { method: "POST" });
     if (!payload.storage || !payload.storage.saved) {
       showWarning(`No se pudo guardar el pedido de prueba: ${payload.storage?.reason || "falta Supabase"}.`);
@@ -254,6 +420,11 @@
 
   async function testEmail() {
     setStatus("Enviando email…", "loading");
+    if (state.demoMode) {
+      showWarning("Email simulado en modo demo local. No se ha enviado nada real.");
+      setStatus("Demo local", "ok");
+      return;
+    }
     const payload = await api("/api/test-order-email", { method: "POST" });
     if (!payload.email || !payload.email.sent) {
       showWarning(`Email no enviado: ${payload.email?.reason || "falta configurar Gmail"}.`);
@@ -303,6 +474,6 @@
 
   if (state.pin) {
     loadOrders();
-    state.timer = setInterval(loadOrders, 20000);
+    if (!state.demoMode) state.timer = setInterval(loadOrders, 20000);
   }
 })();

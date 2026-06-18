@@ -212,7 +212,7 @@ async function updateKitchenOrder(config, orderId, status) {
     throw error;
   }
 
-  const allowed = new Set(["paid", "accepted", "preparing", "ready", "completed", "cancelled", "pending_payment"]);
+  const allowed = new Set(["paid", "accepted", "preparing", "ready", "completed", "cancelled", "refunded", "pending_payment"]);
   const nextStatus = cleanText(status, 40);
   if (!allowed.has(nextStatus)) {
     const error = new Error("Estado de pedido no válido.");

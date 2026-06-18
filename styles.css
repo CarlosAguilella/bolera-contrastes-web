@@ -1829,6 +1829,10 @@ input, textarea, select { font: inherit; color: inherit; }
 .kitchen-card.is-pending {
   border-color: color-mix(in oklab, var(--warning) 45%, var(--line));
 }
+.kitchen-card.is-refunded {
+  border-color: color-mix(in oklab, var(--accent) 50%, var(--line));
+  background: color-mix(in oklab, var(--accent) 5%, var(--bg-elev));
+}
 .kitchen-card header {
   display: flex;
   justify-content: space-between;
@@ -1850,9 +1854,14 @@ input, textarea, select { font: inherit; color: inherit; }
   white-space: nowrap;
 }
 .kitchen-badge[data-status="pending_payment"],
-.kitchen-badge[data-status="cancelled"] {
+.kitchen-badge[data-status="cancelled"],
+.kitchen-badge[data-status="refunded"] {
   background: var(--warning);
   color: white;
+}
+.kitchen-badge[data-status="preparing"] {
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 .kitchen-badge[data-status="ready"] {
   background: var(--positive);
@@ -1890,6 +1899,10 @@ input, textarea, select { font: inherit; color: inherit; }
   background: color-mix(in oklab, var(--warning) 12%, var(--bg));
   color: var(--warning);
   font-weight: 900;
+}
+.kitchen-alert.is-refund {
+  background: color-mix(in oklab, var(--accent) 11%, var(--bg));
+  color: var(--accent);
 }
 .kitchen-items {
   display: grid;
@@ -1934,6 +1947,10 @@ input, textarea, select { font: inherit; color: inherit; }
 }
 .kitchen-card footer button[data-next-status="cancelled"] {
   color: var(--warning);
+}
+.kitchen-card footer button[data-next-status="refunded"] {
+  color: var(--accent);
+  border-color: color-mix(in oklab, var(--accent) 25%, var(--line));
 }
 .kitchen-done {
   color: var(--ink-soft);
