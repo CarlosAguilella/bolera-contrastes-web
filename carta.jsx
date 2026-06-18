@@ -612,6 +612,18 @@ function Carta({ onNav, tweaks }) {
             </form>
           </div>
         </section>
+
+        <section className="delivery-kitchen-access" aria-label="Accesos internos de cocina">
+          <div>
+            <span className="eyebrow">Panel interno</span>
+            <h2>Cocina y pruebas</h2>
+            <p>Accesos rápidos para revisar pedidos reales o enseñar el panel con pedidos de ejemplo.</p>
+          </div>
+          <div className="delivery-kitchen-access__actions">
+            <a className="btn btn-secondary btn-lg" href="/cocina">Entrar a cocina</a>
+            <a className="btn btn-primary btn-lg" href="/cocina?demo=1">Ver cocina demo</a>
+          </div>
+        </section>
       </div>
 
       {cartCount > 0 && (
