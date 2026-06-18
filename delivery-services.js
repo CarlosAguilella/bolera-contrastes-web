@@ -1,10 +1,19 @@
 // Bolera Contrastes — utilidades de delivery, carrito y checkout
 (function () {
   const CART_STORAGE_KEY = "bc-delivery-cart";
+  const CHECKOUT_STORAGE_KEY = "bc-delivery-checkout";
   const LAST_ORDER_STORAGE_KEY = "bc-last-paid-order";
   const PICKUP_OPTIONS = ["Lo antes posible", "En 20 minutos", "En 30 minutos", "En 45 minutos", "En 1 hora"];
   const FEATURED_DISH_IDS = ["p2", "p1", "h1", "d1"];
   const DELIVERY_FEE = 2.5;
+  const MAX_ITEM_QTY = 20;
+  const DELIVERY_MINIMUM = 0;
+  const SERVICE_PROMISES = [
+    { label: "Recogida", value: "20–30 min" },
+    { label: "Domicilio", value: "Onda y alrededores" },
+    { label: "Pago", value: "Tarjeta o Bizum" },
+    { label: "Aviso cocina", value: "Tras pago confirmado" },
+  ];
   const PAYMENT_METHODS = [
     {
       id: "redsys",
@@ -45,6 +54,41 @@
 
   function clearCart() {
     writeCart({});
+  }
+
+  function readCheckout(defaultValue) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(CHECKOUT_STORAGE_KEY) || "{}");
+      if (!saved || typeof saved !== "object" || Array.isArray(saved)) return defaultValue;
+      return {
+        ...defaultValue,
+        name: String(saved.name || defaultValue.name || ""),
+        phone: String(saved.phone || defaultValue.phone || ""),
+        email: String(saved.email || defaultValue.email || ""),
+        deliveryMethod: ["pickup", "delivery"].includes(saved.deliveryMethod) ? saved.deliveryMethod : defaultValue.deliveryMethod,
+        address: String(saved.address || defaultValue.address || ""),
+        pickupTime: PICKUP_OPTIONS.includes(saved.pickupTime) ? saved.pickupTime : defaultValue.pickupTime,
+        notes: String(saved.notes || defaultValue.notes || ""),
+        paymentMethod: saved.paymentMethod || defaultValue.paymentMethod,
+      };
+    } catch (error) {
+      return defaultValue;
+    }
+  }
+
+  function writeCheckout(checkout) {
+    try {
+      localStorage.setItem(CHECKOUT_STORAGE_KEY, JSON.stringify({
+        name: checkout.name || "",
+        phone: checkout.phone || "",
+        email: checkout.email || "",
+        deliveryMethod: checkout.deliveryMethod || "pickup",
+        address: checkout.address || "",
+        pickupTime: checkout.pickupTime || PICKUP_OPTIONS[0],
+        notes: checkout.notes || "",
+        paymentMethod: checkout.paymentMethod || "redsys",
+      }));
+    } catch (error) {}
   }
 
   function buildCartLines(cart, menu) {
@@ -161,11 +205,15 @@
 
   window.BC_DELIVERY = {
     CART_STORAGE_KEY,
+    CHECKOUT_STORAGE_KEY,
     LAST_ORDER_STORAGE_KEY,
     PICKUP_OPTIONS,
     FEATURED_DISH_IDS,
     DELIVERY_FEE,
+    DELIVERY_MINIMUM,
+    MAX_ITEM_QTY,
     PAYMENT_METHODS,
+    SERVICE_PROMISES,
     buildCartLines,
     buildOrderPayload,
     calculatePricing,
@@ -174,9 +222,11 @@
     formatPrice,
     normalizePhone,
     readCart,
+    readCheckout,
     redirectToPayment,
     savePendingOrder,
     validateCheckout,
     writeCart,
+    writeCheckout,
   };
 })();

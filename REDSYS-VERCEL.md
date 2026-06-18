@@ -150,6 +150,14 @@ create index if not exists kitchen_orders_created_at_idx on public.kitchen_order
 - Si Supabase no está configurado, el panel se abre pero avisa de que no hay almacenamiento; email/WhatsApp siguen siendo el respaldo operativo si están configurados.
 - Desde `/cocina`, el botón `Probar pedido` crea un pedido ficticio en Supabase para comprobar que la pantalla funciona antes de aceptar pedidos reales.
 
+Uso recomendado en cocina:
+
+1. Abrir `/cocina` en una tablet u ordenador y entrar con `KITCHEN_PIN`.
+2. Dejar activado el filtro `Activos`; los entregados/cancelados quedan en `Todos`.
+3. Cuando entra un pedido nuevo, la pantalla avisa y suena si el navegador permite audio.
+4. Flujo operativo: `Aceptar` → `Pasar a cocina` → `Marcar listo` → `Entregado`.
+5. Si aparece `Pendiente / no cobrado`, no cocinar hasta que Redsys confirme o se confirme manualmente.
+
 ## Flujo
 
 1. El cliente añade productos y completa contacto, entrega y pago.

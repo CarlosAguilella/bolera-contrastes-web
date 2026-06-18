@@ -36,13 +36,18 @@ function Carta({ onNav, tweaks }) {
   const [vegOnly, setVegOnly] = useStateC(false);
   const [showAllergens, setShowAllergens] = useStateC(false);
   const [cart, setCart] = useStateC(() => Delivery.readCart());
-  const [checkout, setCheckout] = useStateC(CHECKOUT_INITIAL);
+  const [checkout, setCheckout] = useStateC(() => Delivery.readCheckout(CHECKOUT_INITIAL));
   const [checkoutAttempted, setCheckoutAttempted] = useStateC(false);
   const [paymentState, setPaymentState] = useStateC({ type: "idle", message: "" });
+  const [lastCartAction, setLastCartAction] = useStateC("");
 
   useEffectC(() => {
     Delivery.writeCart(cart);
   }, [cart]);
+
+  useEffectC(() => {
+    Delivery.writeCheckout(checkout);
+  }, [checkout]);
 
   const filtered = useMemoC(() => {
     return ALL.filter((dish) => {
@@ -84,13 +89,25 @@ function Carta({ onNav, tweaks }) {
   const firstError = Object.values(validation.errors)[0] || "";
 
   const updateCart = (dish, delta) => {
+    let actionMessage = "";
     setCart((current) => {
       const next = { ...current };
-      const qty = (next[dish.id] || 0) + delta;
+      const currentQty = next[dish.id] || 0;
+      const qty = Math.min(Math.max(currentQty + delta, 0), Delivery.MAX_ITEM_QTY);
+      if (delta > 0 && currentQty >= Delivery.MAX_ITEM_QTY) {
+        actionMessage = `Máximo ${Delivery.MAX_ITEM_QTY} unidades por producto.`;
+        return current;
+      }
       if (qty <= 0) delete next[dish.id];
       else next[dish.id] = qty;
+      actionMessage = qty > currentQty
+        ? `${dish.name} añadido al pedido.`
+        : qty === 0
+          ? `${dish.name} eliminado del pedido.`
+          : `${dish.name} actualizado.`;
       return next;
     });
+    if (actionMessage) setLastCartAction(actionMessage);
     if (paymentState.type !== "loading") {
       setPaymentState({ type: "idle", message: "" });
     }
@@ -98,6 +115,7 @@ function Carta({ onNav, tweaks }) {
 
   const clearCart = () => {
     setCart({});
+    setLastCartAction("Carrito vaciado.");
     setPaymentState({ type: "idle", message: "" });
   };
 
@@ -133,6 +151,7 @@ function Carta({ onNav, tweaks }) {
     : validation.ok
       ? "is-ready"
       : "is-pending";
+  const checkoutStep = cartCount === 0 ? 1 : validation.ok ? 3 : 2;
 
   const startPayment = async (event) => {
     event.preventDefault();
@@ -203,6 +222,14 @@ function Carta({ onNav, tweaks }) {
             <button className="btn btn-secondary btn-lg" type="button" onClick={scrollToDeliveryCheckout}>
               Ver carrito {cartCount > 0 ? `(${cartCount})` : ""}
             </button>
+          </div>
+          <div className="delivery-service-strip" aria-label="Información rápida de pedidos">
+            {Delivery.SERVICE_PROMISES.map((item) => (
+              <span key={item.label}>
+                <small>{item.label}</small>
+                <strong>{item.value}</strong>
+              </span>
+            ))}
           </div>
         </div>
         <div className="delivery-steps-card">
@@ -370,6 +397,11 @@ function Carta({ onNav, tweaks }) {
               <span>Precio recalculado en servidor · Sin claves en frontend · Sin popups bloqueables</span>
             </div>
           </div>
+          <div className="delivery-progress" aria-label="Progreso del pedido">
+            <span className={checkoutStep >= 1 ? "is-active" : ""}>1 · Carta</span>
+            <span className={checkoutStep >= 2 ? "is-active" : ""}>2 · Datos</span>
+            <span className={checkoutStep >= 3 ? "is-active" : ""}>3 · Pago</span>
+          </div>
 
           <div className="delivery-order">
             <aside className="delivery-cart" aria-label="Resumen del pedido">
@@ -382,6 +414,9 @@ function Carta({ onNav, tweaks }) {
                   <button className="btn btn-ghost btn-sm" type="button" onClick={clearCart}>Vaciar</button>
                 )}
               </div>
+              {lastCartAction && (
+                <div className="delivery-cart-notice" role="status">{lastCartAction}</div>
+              )}
 
               {cartLines.length === 0 ? (
                 <div className="delivery-empty-cart">
@@ -400,14 +435,18 @@ function Carta({ onNav, tweaks }) {
                       <div className="delivery-cart__qty">
                         <button type="button" onClick={() => updateCart(dish, -1)} aria-label={`Quitar ${dish.name}`}>−</button>
                         <span>{qty}</span>
-                        <button type="button" onClick={() => updateCart(dish, 1)} aria-label={`Añadir ${dish.name}`}>+</button>
+                        <button type="button" onClick={() => updateCart(dish, 1)} disabled={qty >= Delivery.MAX_ITEM_QTY} aria-label={`Añadir ${dish.name}`}>+</button>
                       </div>
+                      <button className="delivery-cart__remove" type="button" onClick={() => updateCart(dish, -qty)}>
+                        Quitar
+                      </button>
                     </div>
                   ))}
 
                   <div className="delivery-summary">
                     <div><span>Subtotal</span><strong>{Delivery.formatPrice(pricing.subtotal)}</strong></div>
                     <div><span>{checkout.deliveryMethod === "delivery" ? "Entrega domicilio" : "Recogida local"}</span><strong>{pricing.deliveryFee ? Delivery.formatPrice(pricing.deliveryFee) : "Gratis"}</strong></div>
+                    <div><span>Preparación estimada</span><strong>{checkout.deliveryMethod === "delivery" ? "35–50 min" : checkout.pickupTime}</strong></div>
                   </div>
                   <div className="delivery-cart__total">
                     <span>Total final</span>
@@ -465,6 +504,14 @@ function Carta({ onNav, tweaks }) {
                   </button>
                 </div>
               </fieldset>
+              <div className="delivery-service-note delivery-form__full">
+                <strong>{checkout.deliveryMethod === "delivery" ? "Entrega a domicilio" : "Recogida en local"}</strong>
+                <span>
+                  {checkout.deliveryMethod === "delivery"
+                    ? "Confirmaremos el pedido en cocina tras el pago. Si la dirección queda fuera de zona, te llamaremos."
+                    : "Te esperamos en Carrer del Ceramista Abad, 9. Elige la hora aproximada de recogida."}
+                </span>
+              </div>
 
               {checkout.deliveryMethod === "pickup" ? (
                 <fieldset className="delivery-time delivery-form__full">
@@ -576,7 +623,7 @@ function DishCard({ dish, excluded, quantity = 0, onAdd, onRemove }) {
             <div className="dish-card__qty">
               <button type="button" onClick={onRemove} aria-label={`Quitar ${dish.name}`}>−</button>
               <span>{quantity}</span>
-              <button type="button" onClick={onAdd} aria-label={`Añadir ${dish.name}`}>+</button>
+              <button type="button" onClick={onAdd} disabled={quantity >= Delivery.MAX_ITEM_QTY} aria-label={`Añadir ${dish.name}`}>+</button>
             </div>
           ) : (
             <button className="btn btn-secondary btn-sm" type="button" onClick={onAdd}>Añadir</button>
