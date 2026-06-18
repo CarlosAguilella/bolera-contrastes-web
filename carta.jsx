@@ -353,35 +353,47 @@ function Carta({ onNav, tweaks }) {
       </div>
 
       <div id="carta-listado" className="bc-container" style={{ paddingTop: 'var(--s-3)', paddingBottom: 'var(--s-8)' }}>
-        {filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 'var(--s-8) 0', color: 'var(--ink-soft)' }}>
-            <p style={{ fontSize: 18 }}>Nada con esos filtros 😕</p>
-            <button className="btn btn-ghost btn-sm" type="button" onClick={() => { setQuery(""); setCat("all"); setExcluded([]); setVegOnly(false); }}>
-              Limpiar filtros
-            </button>
+        <div className="delivery-menu-shell">
+          <div className="delivery-menu-feed">
+            {filtered.length === 0 ? (
+              <div className="delivery-empty-results">
+                <p>Nada con esos filtros 😕</p>
+                <button className="btn btn-ghost btn-sm" type="button" onClick={() => { setQuery(""); setCat("all"); setExcluded([]); setVegOnly(false); }}>
+                  Limpiar filtros
+                </button>
+              </div>
+            ) : (
+              grouped.map(([catId, items]) => (
+                <section key={catId}>
+                  <div className="menu-cat">
+                    <h3 className="display">{CATS.find((category) => category.id === catId)?.label || catId}</h3>
+                    <span className="menu-cat__count">{items.length} {items.length === 1 ? "plato" : "platos"}</span>
+                  </div>
+                  <div className="menu-grid" data-density={tweaks.density} data-photos={tweaks.photos ? "on" : "off"}>
+                    {items.map((dish) => (
+                      <DishCard
+                        key={dish.id}
+                        dish={dish}
+                        excluded={excluded}
+                        quantity={cart[dish.id] || 0}
+                        onAdd={() => updateCart(dish, 1)}
+                        onRemove={() => updateCart(dish, -1)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))
+            )}
           </div>
-        ) : (
-          grouped.map(([catId, items]) => (
-            <section key={catId}>
-              <div className="menu-cat">
-                <h3 className="display">{CATS.find((category) => category.id === catId)?.label || catId}</h3>
-                <span className="menu-cat__count">{items.length} {items.length === 1 ? "plato" : "platos"}</span>
-              </div>
-              <div className="menu-grid" data-density={tweaks.density} data-photos={tweaks.photos ? "on" : "off"}>
-                {items.map((dish) => (
-                  <DishCard
-                    key={dish.id}
-                    dish={dish}
-                    excluded={excluded}
-                    quantity={cart[dish.id] || 0}
-                    onAdd={() => updateCart(dish, 1)}
-                    onRemove={() => updateCart(dish, -1)}
-                  />
-                ))}
-              </div>
-            </section>
-          ))
-        )}
+          <DeliverySideCart
+            cartLines={cartLines}
+            cartCount={cartCount}
+            pricing={pricing}
+            checkout={checkout}
+            onUpdateCart={updateCart}
+            onClearCart={clearCart}
+          />
+        </div>
 
         <section className="delivery-checkout" id="pedido-recoger">
           <div className="delivery-checkout__head">
@@ -465,6 +477,14 @@ function Carta({ onNav, tweaks }) {
                 <span className="delivery-secure-pill">🔒 Sin popups</span>
               </div>
 
+              <div className="delivery-checkout-step delivery-form__full">
+                <span>1</span>
+                <div>
+                  <strong>Contacto</strong>
+                  <small>Necesario para avisarte si hay cualquier duda.</small>
+                </div>
+              </div>
+
               <label className={getCheckoutError(validation.errors, "name", showErrors) ? "has-error" : ""}>
                 Nombre completo
                 <input value={checkout.name} onChange={(e) => updateCheckout("name", e.target.value)} placeholder="Tu nombre" autoComplete="name" />
@@ -482,6 +502,14 @@ function Carta({ onNav, tweaks }) {
                 <input value={checkout.email} onChange={(e) => updateCheckout("email", e.target.value)} placeholder="tu@email.com" type="email" autoComplete="email" />
                 {getCheckoutError(validation.errors, "email", showErrors) && <small>{validation.errors.email}</small>}
               </label>
+
+              <div className="delivery-checkout-step delivery-form__full">
+                <span>2</span>
+                <div>
+                  <strong>Entrega</strong>
+                  <small>Elige si vienes a recoger o prefieres entrega a domicilio.</small>
+                </div>
+              </div>
 
               <fieldset className="delivery-choice delivery-form__full">
                 <legend>Método de entrega</legend>
@@ -536,6 +564,14 @@ function Carta({ onNav, tweaks }) {
                   {getCheckoutError(validation.errors, "address", showErrors) && <small>{validation.errors.address}</small>}
                 </label>
               )}
+
+              <div className="delivery-checkout-step delivery-form__full">
+                <span>3</span>
+                <div>
+                  <strong>Pago seguro</strong>
+                  <small>Redirección bancaria en la misma pestaña, sin ventanas emergentes.</small>
+                </div>
+              </div>
 
               <fieldset className="delivery-choice delivery-form__full">
                 <legend>Método de pago</legend>
@@ -597,6 +633,7 @@ function DishCard({ dish, excluded, quantity = 0, onAdd, onRemove }) {
     <article className={"dish-card " + (quantity > 0 ? "is-in-cart" : "")} style={hasExcluded ? { opacity: 0.4 } : {}}>
       <div className="dish-card__media">
         <img src={dish.img} alt={dish.name} loading="lazy"/>
+        {quantity > 0 && <span className="dish-card__cart-badge">{quantity} en pedido</span>}
         {dish.veg && (
           <span className="dish-card__veg" title="Vegetariano" aria-label="Vegetariano">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
@@ -631,6 +668,55 @@ function DishCard({ dish, excluded, quantity = 0, onAdd, onRemove }) {
         </div>
       </div>
     </article>
+  );
+}
+
+function DeliverySideCart({ cartLines, cartCount, pricing, checkout, onUpdateCart, onClearCart }) {
+  return (
+    <aside className="delivery-side-cart" aria-label="Carrito lateral">
+      <div className="delivery-side-cart__top">
+        <div>
+          <span className="eyebrow">Tu pedido</span>
+          <strong>{cartCount > 0 ? `${cartCount} productos` : "Empieza tu pedido"}</strong>
+        </div>
+        {cartLines.length > 0 && (
+          <button type="button" onClick={onClearCart}>Vaciar</button>
+        )}
+      </div>
+
+      {cartLines.length === 0 ? (
+        <div className="delivery-side-cart__empty">
+          <span>🛒</span>
+          <p>Añade platos y verás aquí el resumen en tiempo real.</p>
+        </div>
+      ) : (
+        <React.Fragment>
+          <div className="delivery-side-cart__lines">
+            {cartLines.map(({ dish, qty }) => (
+              <div className="delivery-side-cart__line" key={dish.id}>
+                <div>
+                  <strong>{dish.name}</strong>
+                  <span>{Delivery.formatPrice(dish.price * qty)}</span>
+                </div>
+                <div className="delivery-cart__qty">
+                  <button type="button" onClick={() => onUpdateCart(dish, -1)} aria-label={`Quitar ${dish.name}`}>−</button>
+                  <span>{qty}</span>
+                  <button type="button" onClick={() => onUpdateCart(dish, 1)} disabled={qty >= Delivery.MAX_ITEM_QTY} aria-label={`Añadir ${dish.name}`}>+</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="delivery-side-cart__summary">
+            <div><span>Subtotal</span><strong>{Delivery.formatPrice(pricing.subtotal)}</strong></div>
+            <div><span>{checkout.deliveryMethod === "delivery" ? "Domicilio" : "Recogida"}</span><strong>{pricing.deliveryFee ? Delivery.formatPrice(pricing.deliveryFee) : "Gratis"}</strong></div>
+            <div className="is-total"><span>Total</span><strong>{Delivery.formatPrice(pricing.total)}</strong></div>
+          </div>
+          <button className="btn btn-primary btn-block" type="button" onClick={scrollToDeliveryCheckout}>
+            Finalizar pedido
+          </button>
+        </React.Fragment>
+      )}
+    </aside>
   );
 }
 
