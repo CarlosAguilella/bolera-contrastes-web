@@ -3,6 +3,24 @@ const { useState: useStateA, useEffect: useEffectA } = React;
 
 // ===== Presets de paleta =====
 const PALETTES = {
+  restaurante: {
+    label: "Restaurante",
+    swatch: ["#9D4B31", "#F7F1E8", "#211A15"],
+    light: {
+      "--bg": "#F7F1E8", "--bg-elev": "#FFFDF8", "--bg-sunken": "#ECE1D2",
+      "--ink": "#211A15", "--ink-soft": "#6B6258",
+      "--line": "rgba(33, 26, 21, 0.10)", "--line-strong": "rgba(33, 26, 21, 0.18)",
+      "--accent": "#9D4B31", "--accent-ink": "#FFF8F0", "--accent-soft": "#EAD1BF",
+      "--positive": "#2F6F4E", "--warning": "#A46E14",
+    },
+    dark: {
+      "--bg": "#15100C", "--bg-elev": "#211912", "--bg-sunken": "#0D0906",
+      "--ink": "#F7EDDE", "--ink-soft": "#B6A795",
+      "--line": "rgba(247, 237, 222, 0.11)", "--line-strong": "rgba(247, 237, 222, 0.22)",
+      "--accent": "#D36C46", "--accent-ink": "#150F0B", "--accent-soft": "#43271A",
+      "--positive": "#7BB58E", "--warning": "#D4A044",
+    },
+  },
   tostado: {
     label: "Tostado",
     swatch: ["#C8552B", "#F5EFE6", "#1B1814"],
@@ -55,6 +73,12 @@ const PALETTES = {
 
 // ===== Pairings tipográficos =====
 const FONTS = {
+  bistro: {
+    label: "Bistro",
+    display: '"DM Serif Display", "Instrument Serif", Georgia, serif',
+    body: '"DM Sans", "Geist", system-ui, sans-serif',
+    google: "DM+Serif+Display:ital@0;1|DM+Sans:opsz,wght@9..40,300..700",
+  },
   editorial: {
     label: "Editorial",
     display: '"Instrument Serif", Georgia, serif',
@@ -78,11 +102,11 @@ const FONTS = {
 // Aplicar tokens a :root
 function applyTokens(palette, mode, fontKey) {
   const root = document.documentElement;
-  const p = PALETTES[palette] || PALETTES.tostado;
+  const p = PALETTES[palette] || PALETTES.restaurante;
   const tokens = mode === "dark" ? p.dark : p.light;
   Object.entries(tokens).forEach(([k, v]) => root.style.setProperty(k, v));
   root.setAttribute("data-mode", mode);
-  const f = FONTS[fontKey] || FONTS.editorial;
+  const f = FONTS[fontKey] || FONTS.bistro;
   root.style.setProperty("--font-display", f.display);
   root.style.setProperty("--font-body", f.body);
 }
@@ -93,14 +117,14 @@ function paletteFromSwatch(swatch) {
   for (const [k, v] of Object.entries(PALETTES)) {
     if (v.swatch[0].toLowerCase() === String(swatch[0]).toLowerCase()) return k;
   }
-  return "tostado";
+  return "restaurante";
 }
 
 // ===== Defaults =====
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
-  "palette": "tostado",
+  "palette": "restaurante",
   "mode": "light",
-  "font": "editorial",
+  "font": "bistro",
   "density": "cozy",
   "photos": true,
   "heroStyle": "photo"
@@ -144,7 +168,7 @@ function App() {
         <TweakSection label="Dirección visual" />
         <TweakColor
           label="Paleta"
-          value={PALETTES[t.palette]?.swatch || PALETTES.tostado.swatch}
+          value={PALETTES[t.palette]?.swatch || PALETTES.restaurante.swatch}
           options={Object.values(PALETTES).map((p) => p.swatch)}
           onChange={(v) => setTweak('palette', paletteFromSwatch(v))}
         />

@@ -2,23 +2,23 @@
    Tokens están como CSS vars. La app las sobre-escribe vía Tweaks. */
 
 :root {
-  /* Paleta por defecto: "Tostado" */
-  --bg: #F5EFE6;
-  --bg-elev: #FFFFFF;
-  --bg-sunken: #ECE3D4;
-  --ink: #1B1814;
-  --ink-soft: #5B554E;
-  --line: rgba(27, 24, 20, 0.08);
-  --line-strong: rgba(27, 24, 20, 0.18);
-  --accent: #C8552B;
-  --accent-ink: #FFF6EF;
-  --accent-soft: #F3DCC9;
-  --positive: #2F7D4A;
-  --warning: #B17A00;
+  /* Paleta por defecto: "Restaurante" */
+  --bg: #F7F1E8;
+  --bg-elev: #FFFDF8;
+  --bg-sunken: #ECE1D2;
+  --ink: #211A15;
+  --ink-soft: #6B6258;
+  --line: rgba(33, 26, 21, 0.10);
+  --line-strong: rgba(33, 26, 21, 0.18);
+  --accent: #9D4B31;
+  --accent-ink: #FFF8F0;
+  --accent-soft: #EAD1BF;
+  --positive: #2F6F4E;
+  --warning: #A46E14;
 
-  /* Tipo por defecto: "Editorial" */
-  --font-display: "Instrument Serif", "DM Serif Display", Georgia, serif;
-  --font-body: "Geist", "DM Sans", -apple-system, system-ui, sans-serif;
+  /* Tipo por defecto: "Bistro" */
+  --font-display: "DM Serif Display", "Instrument Serif", Georgia, serif;
+  --font-body: "DM Sans", "Geist", -apple-system, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
   /* Escala de espacio */
@@ -50,15 +50,15 @@
 
 /* Dark mode (pub nocturno) */
 :root[data-mode="dark"] {
-  --bg: #15110D;
-  --bg-elev: #1F1A14;
-  --bg-sunken: #100C09;
-  --ink: #F4EBDD;
-  --ink-soft: #A89B89;
-  --line: rgba(244, 235, 221, 0.10);
-  --line-strong: rgba(244, 235, 221, 0.22);
-  --accent-ink: #15110D;
-  --accent-soft: #3A2418;
+  --bg: #15100C;
+  --bg-elev: #211912;
+  --bg-sunken: #0D0906;
+  --ink: #F7EDDE;
+  --ink-soft: #B6A795;
+  --line: rgba(247, 237, 222, 0.11);
+  --line-strong: rgba(247, 237, 222, 0.22);
+  --accent-ink: #150F0B;
+  --accent-soft: #43271A;
 }
 
 /* ===== Reset ===== */
@@ -84,7 +84,7 @@ input, textarea, select { font: inherit; color: inherit; }
 .display, h1, h2, h3 {
   font-family: var(--font-display);
   font-weight: 400;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.018em;
   line-height: 1.05;
   margin: 0;
   text-wrap: balance;
@@ -96,9 +96,9 @@ input, textarea, select { font: inherit; color: inherit; }
 .eyebrow {
   font-family: var(--font-body);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.13em;
   color: var(--ink-soft);
 }
 
@@ -123,9 +123,9 @@ input, textarea, select { font: inherit; color: inherit; }
   gap: var(--s-2);
   padding: 12px 18px;
   border-radius: var(--r-pill);
-  font-weight: 600;
+  font-weight: 700;
   font-size: 15px;
-  letter-spacing: -0.005em;
+  letter-spacing: 0;
   transition: transform .12s ease, background .15s ease, border-color .15s ease, color .15s ease;
   white-space: nowrap;
   border: 1px solid transparent;
