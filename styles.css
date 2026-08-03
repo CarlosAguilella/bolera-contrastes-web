@@ -347,6 +347,13 @@ input, textarea, select { font: inherit; color: inherit; }
   width: 100%; height: 100%;
   object-fit: cover;
 }
+.hero[data-hero="photo"] .hero__media {
+  align-self: center;
+  aspect-ratio: 16/10;
+}
+.hero[data-hero="photo"] .hero__media img {
+  object-position: center;
+}
 .hero__badge {
   position: absolute;
   top: var(--s-4); left: var(--s-4);

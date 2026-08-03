@@ -46,13 +46,13 @@ function Home({ onNav, tweaks }) {
             <div className="hero__media">
               {tweaks.heroStyle === 'photo' && (
                 <img
-                  src="https://images.unsplash.com/photo-1559925393-8be0ec4767c8?w=1200&q=70"
-                  alt="Interior de Bolera Contrastes"
+                  src="assets/bolera-contrastes-fachada.jpg"
+                  alt="Fachada de Bolera Contrastes en Onda"
                 />
               )}
               {tweaks.heroStyle === 'mosaic' && (
                 <React.Fragment>
-                  <img src="https://images.unsplash.com/photo-1559925393-8be0ec4767c8?w=600&q=70" alt="Interior"/>
+                  <img src="assets/bolera-contrastes-fachada.jpg" alt="Fachada de Bolera Contrastes"/>
                   <img src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&q=70" alt="Hamburguesa"/>
                   <img src="https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=600&q=70" alt="Café"/>
                   <img src="https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=600&q=70" alt="Cerveza"/>
