@@ -599,7 +599,7 @@ function buildPaidOrderEmail(payload) {
     : "<li>Sin detalle de artículos</li>";
 
   const html = `
-    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#1B1814;max-width:680px;">
+    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111111;max-width:680px;">
       <h1 style="margin:0 0 12px;">Pedido pagado</h1>
       <p style="margin:0 0 18px;">Redsys ha confirmado un pago correcto para un pedido online de Bolera Contrastes.</p>
       <table style="border-collapse:collapse;width:100%;background:#fff;border:1px solid #eee;border-radius:12px;overflow:hidden;">${htmlRows}</table>

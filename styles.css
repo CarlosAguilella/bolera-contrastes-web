@@ -2,19 +2,19 @@
    Tokens están como CSS vars. La app las sobre-escribe vía Tweaks. */
 
 :root {
-  /* Paleta por defecto: "Restaurante" */
-  --bg: #F7F1E8;
-  --bg-elev: #FFFDF8;
-  --bg-sunken: #ECE1D2;
-  --ink: #211A15;
-  --ink-soft: #6B6258;
-  --line: rgba(33, 26, 21, 0.10);
-  --line-strong: rgba(33, 26, 21, 0.18);
-  --accent: #9D4B31;
-  --accent-ink: #FFF8F0;
-  --accent-soft: #EAD1BF;
-  --positive: #2F6F4E;
-  --warning: #A46E14;
+  /* Paleta por defecto: gris, blanco y negro */
+  --bg: #F7F7F5;
+  --bg-elev: #FFFFFF;
+  --bg-sunken: #ECECEC;
+  --ink: #111111;
+  --ink-soft: #666666;
+  --line: rgba(17, 17, 17, 0.10);
+  --line-strong: rgba(17, 17, 17, 0.22);
+  --accent: #111111;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #E8E8E8;
+  --positive: #2F2F2F;
+  --warning: #777777;
 
   /* Tipo por defecto: "Bistro" */
   --font-display: "DM Serif Display", "Instrument Serif", Georgia, serif;
@@ -50,15 +50,18 @@
 
 /* Dark mode (pub nocturno) */
 :root[data-mode="dark"] {
-  --bg: #15100C;
-  --bg-elev: #211912;
-  --bg-sunken: #0D0906;
-  --ink: #F7EDDE;
-  --ink-soft: #B6A795;
-  --line: rgba(247, 237, 222, 0.11);
-  --line-strong: rgba(247, 237, 222, 0.22);
-  --accent-ink: #150F0B;
-  --accent-soft: #43271A;
+  --bg: #090909;
+  --bg-elev: #151515;
+  --bg-sunken: #000000;
+  --ink: #F5F5F5;
+  --ink-soft: #B8B8B8;
+  --line: rgba(245, 245, 245, 0.12);
+  --line-strong: rgba(245, 245, 245, 0.24);
+  --accent: #F5F5F5;
+  --accent-ink: #090909;
+  --accent-soft: #2B2B2B;
+  --positive: #D0D0D0;
+  --warning: #A8A8A8;
 }
 
 /* ===== Reset ===== */
@@ -151,8 +154,8 @@ input, textarea, select { font: inherit; color: inherit; }
 .btn-ghost:hover { background: var(--bg-sunken); }
 
 .btn-whatsapp {
-  background: #25D366;
-  color: #052E16;
+  background: var(--ink);
+  color: var(--bg);
 }
 .btn-whatsapp:hover { filter: brightness(0.97); }
 
@@ -839,7 +842,7 @@ input, textarea, select { font: inherit; color: inherit; }
 }
 .dish-card.is-in-cart {
   border-color: color-mix(in oklab, var(--accent) 45%, var(--line));
-  box-shadow: 0 18px 52px rgba(200, 85, 43, .15);
+  box-shadow: 0 18px 52px rgba(17, 17, 17, .14);
 }
 .dish-card__media {
   aspect-ratio: 4/3;
@@ -874,7 +877,7 @@ input, textarea, select { font: inherit; color: inherit; }
   color: var(--accent-ink);
   font-size: 12px;
   font-weight: 900;
-  box-shadow: 0 10px 30px rgba(200, 85, 43, .26);
+  box-shadow: 0 10px 30px rgba(17, 17, 17, .22);
 }
 .dish-card__body {
   padding: var(--density-card-pad);
@@ -1265,7 +1268,7 @@ input, textarea, select { font: inherit; color: inherit; }
 .delivery-choice button.is-active {
   border-color: color-mix(in oklab, var(--accent) 55%, var(--line));
   background: color-mix(in oklab, var(--accent-soft) 40%, var(--bg-elev));
-  box-shadow: 0 14px 36px rgba(200, 85, 43, .11);
+  box-shadow: 0 14px 36px rgba(17, 17, 17, .10);
 }
 .delivery-choice strong {
   font-size: 15px;
@@ -2133,7 +2136,7 @@ input, textarea, select { font: inherit; color: inherit; }
 
 /* Reservar preview (WhatsApp preview) */
 .wa-preview {
-  background: #ECE5DD;
+  background: var(--bg-sunken);
   border-radius: var(--r-3);
   padding: var(--s-5);
   position: sticky;
@@ -2144,22 +2147,22 @@ input, textarea, select { font: inherit; color: inherit; }
   display: flex; align-items: center; gap: 10px;
   padding-bottom: var(--s-3);
   border-bottom: 1px solid rgba(0,0,0,0.08);
-  color: #075E54;
+  color: var(--ink);
 }
 .wa-preview__head__avatar {
   width: 36px; height: 36px;
   border-radius: 50%;
-  background: #25D366;
-  color: white;
+  background: var(--ink);
+  color: var(--bg);
   display: grid; place-items: center;
   font-weight: 700;
   font-size: 14px;
 }
-.wa-preview__name { font-size: 14px; font-weight: 600; color: #075E54; }
-.wa-preview__sub { font-size: 11px; color: #128C7E; }
+.wa-preview__name { font-size: 14px; font-weight: 600; color: var(--ink); }
+.wa-preview__sub { font-size: 11px; color: var(--ink-soft); }
 .wa-bubble {
-  background: #DCF8C6;
-  color: #1F2937;
+  background: var(--bg-elev);
+  color: var(--ink);
   padding: 12px 14px;
   border-radius: 12px 12px 4px 12px;
   margin-top: var(--s-4);
@@ -2541,7 +2544,7 @@ input, textarea, select { font: inherit; color: inherit; }
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: var(--r-3);
-  background: #FFFDF8;
+  background: var(--bg-elev);
 }
 
 .points-qr-real span {

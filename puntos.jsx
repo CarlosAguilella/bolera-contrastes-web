@@ -526,8 +526,8 @@ function CustomerQr({ customer }) {
       width: 220,
       margin: 1,
       color: {
-        dark: "#1B1814",
-        light: "#FFFDF8",
+        dark: "#111111",
+        light: "#FFFFFF",
       },
     });
   }, [payload]);
