@@ -1,5 +1,5 @@
 (function () {
-  const STORAGE_KEY = "bc-tpv-mvp-v2";
+  const STORAGE_KEY = "bc-tpv-mvp-v3";
   const fallbackProducts = [
     { id: "p2", categoryId: "picar", category: "Para picar", name: "Patatas bravas", description: "Patata gajo y alioli", priceCents: 650, image: "" },
     { id: "p1", categoryId: "picar", category: "Para picar", name: "Croquetas", description: "Jamón ibérico", priceCents: 750, image: "" },
@@ -7,7 +7,7 @@
     { id: "cv1", categoryId: "cervezas", category: "Cervezas", name: "Caña", description: "Tirador", priceCents: 220, image: "" },
   ];
   const categoryLabels = Object.fromEntries((window.BC_CATEGORIES || []).map((item) => [item.id, item.label]));
-  const products = (window.BC_MENU || fallbackProducts).map((item) => ({
+  const products = (window.BC_TPV_MENU || window.BC_MENU || fallbackProducts).map((item) => ({
     id: item.id,
     categoryId: item.categoryId || item.cat || "otros",
     category: item.category || categoryLabels[item.cat] || "Otros",
@@ -31,17 +31,17 @@
     const now = Date.now();
     return {
       tables: {
-        "2": { openedAt: new Date(now - 36 * 60000).toISOString(), lines: [{ productId: "c1", qty: 2 }, { productId: "p2", qty: 1 }], sentAt: new Date(now - 22 * 60000).toISOString() },
-        "7": { openedAt: new Date(now - 19 * 60000).toISOString(), lines: [{ productId: "cv1", qty: 3 }, { productId: "p1", qty: 1 }], sentAt: new Date(now - 12 * 60000).toISOString() },
-        "14": { openedAt: new Date(now - 8 * 60000).toISOString(), lines: [{ productId: "c2", qty: 2 }], sentAt: null },
+        "2": { openedAt: new Date(now - 36 * 60000).toISOString(), lines: [{ productId: "bolera-94", qty: 2 }, { productId: "bolera-90", qty: 1 }], sentAt: new Date(now - 22 * 60000).toISOString() },
+        "7": { openedAt: new Date(now - 19 * 60000).toISOString(), lines: [{ productId: "bolera-11", qty: 3 }, { productId: "bolera-10", qty: 1 }], sentAt: new Date(now - 12 * 60000).toISOString() },
+        "14": { openedAt: new Date(now - 8 * 60000).toISOString(), lines: [{ productId: "bolera-132", qty: 2 }], sentAt: null },
       },
       kitchenOrders: [
-        { id: "K-1002", tableId: "2", status: "preparing", createdAt: new Date(now - 22 * 60000).toISOString(), lines: [{ productId: "p2", qty: 1 }] },
-        { id: "K-1001", tableId: "7", status: "ready", createdAt: new Date(now - 12 * 60000).toISOString(), lines: [{ productId: "p1", qty: 1 }] },
+        { id: "K-1002", tableId: "2", status: "preparing", createdAt: new Date(now - 22 * 60000).toISOString(), lines: [{ productId: "bolera-90", qty: 1 }] },
+        { id: "K-1001", tableId: "7", status: "ready", createdAt: new Date(now - 12 * 60000).toISOString(), lines: [{ productId: "bolera-10", qty: 1 }] },
       ],
       sales: [
-        { id: "V-1001", tableId: "4", totalCents: 1250, method: "card", paidAt: new Date(now - 55 * 60000).toISOString(), lines: [{ productId: "cv1", qty: 2 }, { productId: "p2", qty: 1 }] },
-        { id: "V-1000", tableId: "11", totalCents: 840, method: "cash", paidAt: new Date(now - 110 * 60000).toISOString(), lines: [{ productId: "c1", qty: 2 }, { productId: "cv1", qty: 1 }, { productId: "c2", qty: 1 }] },
+        { id: "V-1001", tableId: "4", totalCents: 1200, method: "card", paidAt: new Date(now - 55 * 60000).toISOString(), lines: [{ productId: "bolera-132", qty: 2 }, { productId: "bolera-90", qty: 1 }] },
+        { id: "V-1000", tableId: "11", totalCents: 740, method: "cash", paidAt: new Date(now - 110 * 60000).toISOString(), lines: [{ productId: "bolera-94", qty: 2 }, { productId: "bolera-11", qty: 1 }, { productId: "bolera-156", qty: 1 }] },
       ],
       costs: {},
       sequence: 1003,
@@ -71,7 +71,12 @@
   }
 
   function isKitchenProduct(product) {
-    return product && !["cafe", "cervezas", "cocteles"].includes(product.categoryId);
+    const barCategories = new Set([
+      "refrescos y cervezas", "café e infusiones", "bebida alcohólica", "vino blanco",
+      "vino tinto rioja", "vino tinto ribera del duero", "cavas y champagne", "bollería",
+      "postres", "fiesta", "otros"
+    ]);
+    return product && !barCategories.has(String(product.category || "").toLocaleLowerCase("es"));
   }
 
   function formatEuros(cents) {

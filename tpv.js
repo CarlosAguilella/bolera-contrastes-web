@@ -113,7 +113,7 @@
   function renderOrder() {
     const ticket = state.data.tables[state.selectedTableId];
     if (!ticket) { state.page = "sala"; return renderFloor(); }
-    const categories = (window.BC_CATEGORIES || []).filter((category) => category.id === "all" || Core.products.some((item) => item.categoryId === category.id));
+    const categories = [{ id: "all", label: "Todo" }, ...Array.from(new Map(Core.products.map((item) => [item.categoryId, { id: item.categoryId, label: item.category }])).values())];
     const visible = Core.products.filter((item) => state.category === "all" || item.categoryId === state.category);
     return `${topbar(`Mesa ${state.selectedTableId}`, "Añade productos y envía la comanda cuando esté lista")}<div class="tpv-order"><section class="tpv-panel"><div class="tpv-panel__head"><div><h2>Carta completa</h2><span>${visible.length} productos disponibles</span></div><button class="tpv-action is-secondary" type="button" data-nav="sala">Volver a sala</button></div><div class="tpv-category-filter">${categories.map((category) => `<button type="button" class="${state.category === category.id ? "is-active" : ""}" data-category="${category.id}">${escapeHtml(category.label)}</button>`).join("")}</div><div class="tpv-catalog">${visible.map((item) => `<article class="tpv-product">${item.image ? `<img src="${escapeHtml(item.image)}" alt="" loading="lazy">` : ""}<div><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.description)}</span></div><div class="tpv-product__bottom"><span class="tpv-product__price">${Core.formatEuros(item.priceCents)}</span><button type="button" class="tpv-add" data-add-product="${item.id}">Añadir</button></div></article>`).join("")}</div></section>${ticketView(ticket)}</div>`;
   }
