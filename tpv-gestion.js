@@ -1,9 +1,10 @@
 (function () {
   const Core = window.BC_TPV;
+  const Cloud = window.BC_TPV_CLOUD;
   const root = document.getElementById("tpv-gestion-root");
   if (!Core || !root) return;
 
-  const state = { tab: "ventas", search: "", editingId: null, editingTableId: null, deletingTableId: null, data: Core.loadData(), toast: null };
+  const state = { tab: "ventas", search: "", editingId: null, editingTableId: null, deletingTableId: null, loginOpen: false, data: Core.loadData(), toast: null };
   let toastTimer = null;
   let draggedTable = null;
 
@@ -12,6 +13,14 @@
   }
   function product(productId) { return Core.getProduct(productId, state.data); }
   function save() { Core.saveData(state.data); }
+  function session() { return Cloud?.getSession?.() || null; }
+  function isCloudConnected() { return Boolean(session()); }
+  async function refreshCloudTables() {
+    if (!isCloudConnected()) return;
+    const tables = await Cloud.loadTables();
+    Cloud.saveRemoteTables(state.data, tables);
+    save();
+  }
   function flash(message) {
     state.toast = message;
     clearTimeout(toastTimer);
@@ -42,7 +51,8 @@
   }
   function topbar() {
     const title = { ventas: "Ventas", articulos: "Artículos y precios", sala: "Sala y mesas" }[state.tab];
-    return `<header class="tpv-gestion-topbar"><div><span>Administración</span><h1>${title}</h1></div><div class="tpv-gestion-topbar__actions"><span class="tpv-live">Datos locales</span><a class="tpv-action is-secondary" href="tpv.html">TPV camarero</a></div></header>`;
+    const user = session()?.user;
+    return `<header class="tpv-gestion-topbar"><div><span>Administración</span><h1>${title}</h1></div><div class="tpv-gestion-topbar__actions"><span class="tpv-live">${user ? `Base central · ${escapeHtml(user.displayName)}` : "Datos locales"}</span>${user ? `<button class="tpv-action is-secondary" type="button" data-logout>Salir</button>` : `<button class="tpv-action is-secondary" type="button" data-open-login>Acceder</button>`}<a class="tpv-action is-secondary" href="tpv.html">TPV camarero</a></div></header>`;
   }
   function renderBars(rows, type) {
     const max = Math.max(...rows.map((row) => row.value), 1);
@@ -86,14 +96,21 @@
     }
     return "";
   }
+  function loginModal() {
+    if (!state.loginOpen) return "";
+    return `<div class="tpv-modal-backdrop"><form class="tpv-modal" data-login-form><button class="tpv-modal__close" type="button" data-close-login aria-label="Cerrar">×</button><h2>Acceso al TPV</h2><p>Inicia sesión para sincronizar las mesas con la base central.</p><label>Usuario<input name="username" autocomplete="username" minlength="3" required></label><label>PIN<input name="pin" inputmode="numeric" autocomplete="current-password" pattern="[0-9]{4,10}" minlength="4" maxlength="10" required></label><div class="tpv-modal__actions"><button class="tpv-action is-secondary" type="button" data-close-login>Cancelar</button><button class="tpv-action" type="submit">Entrar</button></div></form></div>`;
+  }
   function render() {
     const content = state.tab === "ventas" ? renderSales() : state.tab === "articulos" ? renderArticles() : renderTables();
-    root.innerHTML = `<div class="tpv-management-app">${nav()}<main class="tpv-management-main">${topbar()}${content}</main>${priceModal()}${tableModal()}${state.toast ? `<div class="tpv-toast is-success">${escapeHtml(state.toast)}</div>` : ""}</div>`;
+    root.innerHTML = `<div class="tpv-management-app">${nav()}<main class="tpv-management-main">${topbar()}${content}</main>${priceModal()}${tableModal()}${loginModal()}${state.toast ? `<div class="tpv-toast is-success">${escapeHtml(state.toast)}</div>` : ""}</div>`;
   }
-  root.addEventListener("click", (event) => {
+  root.addEventListener("click", async (event) => {
     const button = event.target.closest("button");
     if (!button) return;
     if (button.dataset.tab) { state.tab = button.dataset.tab; render(); return; }
+    if (button.dataset.openLogin !== undefined) { state.loginOpen = true; render(); return; }
+    if (button.dataset.closeLogin !== undefined) { state.loginOpen = false; render(); return; }
+    if (button.dataset.logout !== undefined) { Cloud.logout(); flash("Sesión cerrada. Los cambios vuelven a guardarse solo en este dispositivo."); render(); return; }
     if (button.dataset.editProduct) { state.editingId = button.dataset.editProduct; render(); return; }
     if (button.dataset.closeEdit !== undefined) { state.editingId = null; render(); }
     if (button.dataset.editTable) { state.editingTableId = button.dataset.editTable; render(); return; }
@@ -102,6 +119,19 @@
     if (button.dataset.confirmDeleteTable) {
       const tableId = button.dataset.confirmDeleteTable;
       if (isTableOccupied(tableId)) { state.deletingTableId = null; flash("No puedes quitar una mesa con comanda activa."); render(); return; }
+      if (isCloudConnected()) {
+        try {
+          await Cloud.deleteTable(Cloud.tableId(state.data, tableId));
+          await refreshCloudTables();
+          state.deletingTableId = null;
+          flash(`Mesa ${tableId} eliminada de la base central.`);
+          render();
+        } catch (error) {
+          flash(error.message);
+          render();
+        }
+        return;
+      }
       state.data.tableLayout = tableLayout().filter((table) => table.id !== tableId);
       state.deletingTableId = null;
       save();
@@ -129,14 +159,21 @@
     draggedTable.element.style.setProperty("--x", draggedTable.x);
     draggedTable.element.style.setProperty("--y", draggedTable.y);
   }
-  function finishDraggedTable() {
+  async function finishDraggedTable() {
     if (!draggedTable) return;
     const moved = draggedTable;
     moved.element.classList.remove("is-dragging");
     state.data.tableLayout = tableLayout().map((table) => table.id === moved.id ? { ...table, x: moved.x, y: moved.y } : table);
     draggedTable = null;
     save();
-    flash(`Posición de mesa ${moved.id} guardada.`);
+    if (isCloudConnected()) {
+      try {
+        await Cloud.updateTable(Cloud.tableId(state.data, moved.id), { x: moved.x, y: moved.y });
+        flash(`Posición de mesa ${moved.id} sincronizada.`);
+      } catch (error) {
+        flash(error.message);
+      }
+    } else flash(`Posición de mesa ${moved.id} guardada.`);
     render();
   }
   if (window.addEventListener) {
@@ -152,6 +189,19 @@
     if (input) { input.focus(); input.setSelectionRange(state.search.length, state.search.length); }
   });
   root.addEventListener("submit", (event) => {
+    if (event.target.matches("[data-login-form]")) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      Cloud.login(String(form.get("username") || ""), String(form.get("pin") || ""))
+        .then(async () => {
+          await refreshCloudTables();
+          state.loginOpen = false;
+          flash("Sesión iniciada. Las mesas ya usan la base central.");
+          render();
+        })
+        .catch((error) => { flash(error.message); render(); });
+      return;
+    }
     if (event.target.matches("[data-table-add-form]")) {
       event.preventDefault();
       const form = new FormData(event.target);
@@ -159,10 +209,16 @@
       if (!validTableNumber(tableNumber)) { flash("Usa un número de mesa entre 1 y 999."); render(); return; }
       if (tableLayout().some((table) => table.id === tableNumber)) { flash(`La mesa ${tableNumber} ya existe.`); render(); return; }
       const position = Core.suggestedTablePosition(tableLayout());
-      state.data.tableLayout = [...tableLayout(), { id: tableNumber, name: `Mesa ${tableNumber}`, area: form.get("area") === "wall" ? "wall" : "sala", ...position }];
-      save();
-      flash(`Mesa ${tableNumber} añadida al plano.`);
-      render();
+      if (isCloudConnected()) {
+        Cloud.createTable({ tableNumber, area: form.get("area") === "wall" ? "pared" : "sala", ...position })
+          .then(async () => { await refreshCloudTables(); flash(`Mesa ${tableNumber} añadida a la base central.`); render(); })
+          .catch((error) => { flash(error.message); render(); });
+      } else {
+        state.data.tableLayout = [...tableLayout(), { id: tableNumber, name: `Mesa ${tableNumber}`, area: form.get("area") === "wall" ? "wall" : "sala", ...position }];
+        save();
+        flash(`Mesa ${tableNumber} añadida al plano.`);
+        render();
+      }
       return;
     }
     if (event.target.matches("[data-table-edit-form]")) {
@@ -172,12 +228,25 @@
       const previousId = state.editingTableId;
       if (!validTableNumber(tableNumber)) { flash("Usa un número de mesa entre 1 y 999."); render(); return; }
       if (tableNumber !== previousId && tableLayout().some((table) => table.id === tableNumber)) { flash(`La mesa ${tableNumber} ya existe.`); render(); return; }
-      state.data.tableLayout = tableLayout().map((table) => table.id === previousId ? { ...table, id: tableNumber, name: `Mesa ${tableNumber}`, area: form.get("area") === "wall" ? "wall" : "sala" } : table);
-      moveTableReferences(previousId, tableNumber);
-      state.editingTableId = null;
-      save();
-      flash(`Mesa ${previousId} actualizada como mesa ${tableNumber}.`);
-      render();
+      if (isCloudConnected()) {
+        const originalTable = tableLayout().find((table) => table.id === previousId);
+        Cloud.updateTable(Cloud.tableId(state.data, previousId), { tableNumber, area: form.get("area") === "wall" ? "pared" : "sala", x: originalTable.x, y: originalTable.y })
+          .then(async () => {
+            moveTableReferences(previousId, tableNumber);
+            await refreshCloudTables();
+            state.editingTableId = null;
+            flash(`Mesa ${previousId} actualizada en la base central.`);
+            render();
+          })
+          .catch((error) => { flash(error.message); render(); });
+      } else {
+        state.data.tableLayout = tableLayout().map((table) => table.id === previousId ? { ...table, id: tableNumber, name: `Mesa ${tableNumber}`, area: form.get("area") === "wall" ? "wall" : "sala" } : table);
+        moveTableReferences(previousId, tableNumber);
+        state.editingTableId = null;
+        save();
+        flash(`Mesa ${previousId} actualizada como mesa ${tableNumber}.`);
+        render();
+      }
       return;
     }
     if (!event.target.matches("[data-price-form]")) return;
@@ -197,4 +266,8 @@
     render();
   });
   render();
+  if (isCloudConnected()) {
+    refreshCloudTables().then(render).catch(() => {});
+    window.setInterval(() => refreshCloudTables().then(render).catch(() => {}), 15000);
+  }
 })();

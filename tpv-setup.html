@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Configurar TPV — Bolera Contrastes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="tpv.css">
+</head>
+<body>
+  <main class="tpv-setup">
+    <form class="tpv-modal" data-setup-form>
+      <span class="tpv-live">Configuración única</span>
+      <h1>Crear administrador</h1>
+      <p>Este paso crea el primer usuario administrador y carga las mesas actuales en la base central.</p>
+      <label>Código de configuración<input name="bootstrapSecret" type="password" autocomplete="off" required></label>
+      <label>Tu nombre<input name="displayName" autocomplete="name" required></label>
+      <label>Usuario<input name="username" autocomplete="username" pattern="[a-z0-9._-]{3,40}" placeholder="carlos" required></label>
+      <label>PIN de acceso<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,10}" minlength="4" maxlength="10" required></label>
+      <div class="tpv-modal__actions"><a class="tpv-action is-secondary" href="tpv-gestion.html">Cancelar</a><button class="tpv-action" type="submit">Crear administrador</button></div>
+      <p class="tpv-setup__message" data-setup-message aria-live="polite"></p>
+    </form>
+  </main>
+  <script src="tpv-setup.js"></script>
+</body>
+</html>

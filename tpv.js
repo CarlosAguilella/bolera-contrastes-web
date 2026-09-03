@@ -1,5 +1,6 @@
 (function () {
   const Core = window.BC_TPV;
+  const Cloud = window.BC_TPV_CLOUD;
   const root = document.getElementById("tpv-root");
   if (!Core || !root) return;
 
@@ -13,6 +14,13 @@
   function lineCount(lines) { return (lines || []).reduce((total, line) => total + Number(line.qty || 0), 0); }
   function total(lines) { return (lines || []).reduce((sum, line) => sum + (product(line.productId)?.priceCents || 0) * Number(line.qty || 0), 0); }
   function save() { Core.saveData(state.data); }
+  function session() { return Cloud?.getSession?.() || null; }
+  async function refreshCloudTables() {
+    if (!session()) return;
+    const tables = await Cloud.loadTables();
+    Cloud.saveRemoteTables(state.data, tables);
+    save();
+  }
   function timeSince(value) {
     const minutes = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 60000));
     return minutes < 1 ? "ahora" : `${minutes} min`;
@@ -99,9 +107,10 @@
 
   function sidebar() {
     const nav = [["sala", "▦", "Sala"], ["cocina", "♨", "Cocina"], ["caja", "€", "Caja"]];
-    return `<aside class="tpv-sidebar"><a class="tpv-brand" href="index.html" aria-label="Volver a Bolera Contrastes"><span class="tpv-brand__mark">C</span><span class="tpv-brand__type"><strong>Contrastes</strong><small>TPV camarero</small></span></a><nav class="tpv-nav" aria-label="Navegación TPV">${nav.map(([page, icon, label]) => `<button type="button" class="${state.page === page || (page === "sala" && state.page === "comanda") ? "is-active" : ""}" data-nav="${page}"><span class="tpv-nav__icon">${icon}</span>${label}</button>`).join("")}</nav><div class="tpv-sidebar__bottom"><div class="tpv-user"><span class="tpv-user__avatar">RC</span><span>Turno activo</span></div><button type="button" class="tpv-reset" data-reset-demo="true">Restaurar demo</button></div></aside>`;
+    const user = session()?.user;
+    return `<aside class="tpv-sidebar"><a class="tpv-brand" href="index.html" aria-label="Volver a Bolera Contrastes"><span class="tpv-brand__mark">C</span><span class="tpv-brand__type"><strong>Contrastes</strong><small>TPV camarero</small></span></a><nav class="tpv-nav" aria-label="Navegación TPV">${nav.map(([page, icon, label]) => `<button type="button" class="${state.page === page || (page === "sala" && state.page === "comanda") ? "is-active" : ""}" data-nav="${page}"><span class="tpv-nav__icon">${icon}</span>${label}</button>`).join("")}</nav><div class="tpv-sidebar__bottom"><div class="tpv-user"><span class="tpv-user__avatar">${user ? escapeHtml(user.displayName.slice(0, 2).toUpperCase()) : "--"}</span><span>${user ? escapeHtml(user.displayName) : "Sin sesión"}</span></div><button type="button" class="tpv-reset" data-open-login="true">${user ? "Sesión iniciada" : "Acceder al TPV"}</button>${user ? `<button type="button" class="tpv-reset" data-logout="true">Cerrar sesión</button>` : ""}<button type="button" class="tpv-reset" data-reset-demo="true">Restaurar demo</button></div></aside>`;
   }
-  function topbar(title, subtitle) { return `<header class="tpv-topbar"><div><h1>${title}</h1><p>${subtitle}</p></div><span class="tpv-live">Sistema local activo</span></header>`; }
+  function topbar(title, subtitle) { return `<header class="tpv-topbar"><div><h1>${title}</h1><p>${subtitle}</p></div><span class="tpv-live">${session() ? "Mesas sincronizadas" : "Sistema local activo"}</span></header>`; }
   function renderFloor() {
     const opened = Object.keys(state.data.tables).length;
     const layout = Core.getTables(state.data);
@@ -137,13 +146,19 @@
     const ticket = state.data.tables[state.selectedTableId];
     return `<div class="tpv-modal-backdrop"><section class="tpv-modal"><button class="tpv-modal__close" type="button" data-close-modal="true" aria-label="Cerrar">×</button><h2>Cobrar mesa ${state.selectedTableId}</h2><p>Total a registrar: <strong>${Core.formatEuros(total(ticket?.lines || []))}</strong></p><div class="tpv-payment-options"><button type="button" data-pay="card"><b>Tarjeta</b><span>Confirmar en TPV bancario</span></button><button type="button" data-pay="cash"><b>Efectivo</b><span>Registrar cobro en caja</span></button></div><p class="tpv-modal__note">El pago con tarjeta se confirma después de cobrarlo en el terminal físico.</p></section></div>`;
   }
+  function loginModal() {
+    if (state.modal !== "login") return "";
+    return `<div class="tpv-modal-backdrop"><form class="tpv-modal" data-login-form><button class="tpv-modal__close" type="button" data-close-modal="true" aria-label="Cerrar">×</button><h2>Acceso al TPV</h2><p>Usa tu usuario y PIN para ver las mesas configuradas en la base central.</p><label>Usuario<input name="username" autocomplete="username" minlength="3" required></label><label>PIN<input name="pin" inputmode="numeric" autocomplete="current-password" pattern="[0-9]{4,10}" minlength="4" maxlength="10" required></label><div class="tpv-modal__actions"><button class="tpv-action is-secondary" type="button" data-close-modal="true">Cancelar</button><button class="tpv-action" type="submit">Entrar</button></div></form></div>`;
+  }
   function render() {
     const view = state.page === "comanda" ? renderOrder() : state.page === "cocina" ? renderKitchen() : state.page === "caja" ? renderCash() : renderFloor();
-    root.innerHTML = `<div class="tpv-app">${sidebar()}<main class="tpv-main">${view}</main>${paymentModal()}${state.toast ? `<div class="tpv-toast ${state.toast.tone ? `is-${state.toast.tone}` : ""}">${escapeHtml(state.toast.message)}</div>` : ""}</div>`;
+    root.innerHTML = `<div class="tpv-app">${sidebar()}<main class="tpv-main">${view}</main>${paymentModal()}${loginModal()}${state.toast ? `<div class="tpv-toast ${state.toast.tone ? `is-${state.toast.tone}` : ""}">${escapeHtml(state.toast.message)}</div>` : ""}</div>`;
   }
   root.addEventListener("click", (event) => {
     const button = event.target.closest("button, [data-nav]");
     if (!button) return;
+    if (button.dataset.openLogin !== undefined) { state.modal = "login"; render(); return; }
+    if (button.dataset.logout !== undefined) { Cloud.logout(); flash("Sesión cerrada."); render(); return; }
     if (button.dataset.nav) { state.page = button.dataset.nav; state.selectedTableId = null; state.modal = null; render(); return; }
     if (button.dataset.openTable) { openTable(button.dataset.openTable); return; }
     if (button.dataset.category) { state.category = button.dataset.category; render(); return; }
@@ -156,5 +171,22 @@
     if (button.dataset.pay) { pay(button.dataset.pay); return; }
     if (button.dataset.resetDemo) resetDemo();
   });
+  root.addEventListener("submit", (event) => {
+    if (!event.target.matches("[data-login-form]")) return;
+    event.preventDefault();
+    const form = new FormData(event.target);
+    Cloud.login(String(form.get("username") || ""), String(form.get("pin") || ""))
+      .then(async () => {
+        await refreshCloudTables();
+        state.modal = null;
+        flash("Sesión iniciada. Las mesas están sincronizadas.", "success");
+        render();
+      })
+      .catch((error) => { flash(error.message); render(); });
+  });
   render();
+  if (session()) {
+    refreshCloudTables().then(render).catch(() => {});
+    window.setInterval(() => refreshCloudTables().then(render).catch(() => {}), 15000);
+  }
 })();

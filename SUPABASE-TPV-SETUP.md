@@ -16,13 +16,20 @@ En Vercel > proyecto > **Settings > Environment Variables**, añade para `Produc
 SUPABASE_URL=https://TU-PROYECTO.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=tu_clave_service_role
 TPV_SESSION_SECRET=una_frase_aleatoria_larga_de_32_caracteres_o_mas
+TPV_BOOTSTRAP_SECRET=otra_frase_aleatoria_larga_y_distinta
 ```
 
 `SUPABASE_SERVICE_ROLE_KEY` y `TPV_SESSION_SECRET` son secretos: no se envían por WhatsApp, capturas, GitHub ni se ponen en archivos del navegador.
 
-La variable `SUPABASE_URL` ya coincide con la que utiliza el panel de cocina existente. Cuando se active el resto del TPV, se añadirá un endpoint de Vercel que usa estas claves en el servidor.
+La variable `SUPABASE_URL` ya coincide con la que utiliza el panel de cocina existente. Las claves se usan exclusivamente dentro de las funciones de Vercel.
 
-## 3. Datos que necesitamos decidir
+## 3. Crear el primer acceso
+
+Después de desplegar las variables y el código, abre `/tpv-setup` en la web. Introduce el valor de `TPV_BOOTSTRAP_SECRET`, tu nombre, un usuario en minúsculas y un PIN de 4 a 10 dígitos. El proceso crea el primer administrador y carga las 27 mesas iniciales en Supabase.
+
+Luego entra en `/tpv-gestion`, pulsa `Acceder` e inicia sesión. Desde `Sala y mesas`, al crear, editar, eliminar o arrastrar una mesa, los cambios se guardan en la base central y aparecen para los demás dispositivos con sesión iniciada.
+
+## 4. Datos que necesitamos decidir
 
 - Usuario administrador inicial: nombre visible y correo/usuario.
 - PIN inicial de administración y PIN de cada camarero/cocina. Se configurarán desde el panel; no se guardan en texto plano.
