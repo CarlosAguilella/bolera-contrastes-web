@@ -79,16 +79,97 @@
     return request("tpv-tables", { method: "DELETE", body: JSON.stringify({ id }) });
   }
 
+  async function loadProducts() {
+    const result = await request("tpv-products");
+    return result.products || [];
+  }
+
+  async function seedProducts() {
+    const result = await request("tpv-products", { method: "POST", body: JSON.stringify({ action: "seed" }) });
+    return result.products || [];
+  }
+
+  async function updateProduct(id, priceCents, costCents) {
+    const result = await request("tpv-products", { method: "PATCH", body: JSON.stringify({ id, priceCents, costCents }) });
+    return result.product;
+  }
+
+  function saveRemoteProducts(data, products) {
+    if (!data || !Array.isArray(products)) return data;
+    data.prices = data.prices || {};
+    data.costs = data.costs || {};
+    data.cloudProductIds = {};
+    products.forEach((product) => {
+      data.cloudProductIds[product.external_id] = product.id;
+      data.prices[product.external_id] = Number(product.price_cents);
+      if (product.cost_cents === null || product.cost_cents === undefined) delete data.costs[product.external_id];
+      else data.costs[product.external_id] = Number(product.cost_cents);
+    });
+    return data;
+  }
+
+  async function loadOrders() {
+    const result = await request("tpv-orders");
+    return result.orders || [];
+  }
+
+  async function loadSales() {
+    const result = await request("tpv-orders?scope=sales");
+    return result.orders || [];
+  }
+
+  async function openOrder(tableNumber) {
+    const result = await request("tpv-orders", { method: "POST", body: JSON.stringify({ tableNumber }) });
+    return result.order;
+  }
+
+  async function saveOrder(orderId, lines) {
+    const result = await request("tpv-orders", { method: "PATCH", body: JSON.stringify({ orderId, action: "save", lines }) });
+    return result.order;
+  }
+
+  async function sendOrderToKitchen(orderId, lines) {
+    const result = await request("tpv-orders", { method: "PATCH", body: JSON.stringify({ orderId, action: "send_kitchen", lines }) });
+    return result;
+  }
+
+  async function payOrder(orderId, method, lines) {
+    const result = await request("tpv-orders", { method: "PATCH", body: JSON.stringify({ orderId, action: "pay", method, lines }) });
+    return result.order;
+  }
+
+  async function loadKitchenOrders() {
+    const result = await request("tpv-kitchen");
+    return result.orders || [];
+  }
+
+  async function updateKitchenOrder(orderId, status) {
+    const result = await request("tpv-kitchen", { method: "PATCH", body: JSON.stringify({ orderId, status }) });
+    return result.order;
+  }
+
   window.BC_TPV_CLOUD = {
     createTable,
     deleteTable,
     getSession,
     loadTables,
     login,
+    loadKitchenOrders,
+    loadOrders,
+    loadProducts,
+    loadSales,
     logout,
     request,
+    payOrder,
+    saveOrder,
+    saveRemoteProducts,
     saveRemoteTables,
     tableId,
+    openOrder,
+    seedProducts,
+    sendOrderToKitchen,
+    updateKitchenOrder,
+    updateProduct,
     updateTable,
   };
 })();

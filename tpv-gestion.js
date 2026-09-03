@@ -21,6 +21,27 @@
     Cloud.saveRemoteTables(state.data, tables);
     save();
   }
+  async function refreshCloudProducts() {
+    if (!isCloudConnected()) return;
+    let products = await Cloud.loadProducts();
+    if (!products.length && ["admin", "manager"].includes(session().user.role)) products = await Cloud.seedProducts();
+    Cloud.saveRemoteProducts(state.data, products);
+    save();
+  }
+  async function refreshCloudSales() {
+    if (!isCloudConnected()) return;
+    const sales = await Cloud.loadSales();
+    const byDatabaseId = Object.fromEntries(Object.entries(state.data.cloudProductIds || {}).map(([externalId, id]) => [id, externalId]));
+    state.data.sales = sales.map((sale) => ({
+      id: `V-${sale.order_number}`,
+      tableId: String(sale.table_number || "—"),
+      totalCents: Number(sale.total_cents || 0),
+      method: sale.payment_method,
+      paidAt: sale.closed_at,
+      lines: (sale.pos_order_items || []).map((item) => ({ productId: byDatabaseId[item.product_id], qty: Number(item.quantity || 0) })).filter((line) => line.productId && line.qty > 0),
+    }));
+    save();
+  }
   function flash(message) {
     state.toast = message;
     clearTimeout(toastTimer);
@@ -195,6 +216,8 @@
       Cloud.login(String(form.get("username") || ""), String(form.get("pin") || ""))
         .then(async () => {
           await refreshCloudTables();
+          await refreshCloudProducts();
+          await refreshCloudSales();
           state.loginOpen = false;
           flash("Sesión iniciada. Las mesas ya usan la base central.");
           render();
@@ -260,14 +283,22 @@
     state.data.prices[state.editingId] = price;
     if (rawCost) state.data.costs[state.editingId] = Math.round(Number(rawCost) * 100);
     else delete state.data.costs[state.editingId];
+    const productId = state.editingId;
     state.editingId = null;
     save();
-    flash("Artículo actualizado en este dispositivo.");
-    render();
+    if (isCloudConnected()) {
+      const cloudProductId = state.data.cloudProductIds?.[productId];
+      Cloud.updateProduct(cloudProductId, price, rawCost ? Math.round(Number(rawCost) * 100) : null)
+        .then(async () => { await refreshCloudProducts(); flash("Artículo actualizado en la base central."); render(); })
+        .catch((error) => { flash(error.message); render(); });
+    } else {
+      flash("Artículo actualizado en este dispositivo.");
+      render();
+    }
   });
   render();
   if (isCloudConnected()) {
-    refreshCloudTables().then(render).catch(() => {});
-    window.setInterval(() => refreshCloudTables().then(render).catch(() => {}), 15000);
+    Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales()]).then(render).catch(() => {});
+    window.setInterval(() => Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales()]).then(render).catch(() => {}), 15000);
   }
 })();

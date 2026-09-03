@@ -15,10 +15,33 @@
   function total(lines) { return (lines || []).reduce((sum, line) => sum + (product(line.productId)?.priceCents || 0) * Number(line.qty || 0), 0); }
   function save() { Core.saveData(state.data); }
   function session() { return Cloud?.getSession?.() || null; }
-  async function refreshCloudTables() {
+  function isCloudConnected() { return Boolean(session()); }
+  function productExternalIds() {
+    return Object.fromEntries(Object.entries(state.data.cloudProductIds || {}).map(([externalId, id]) => [id, externalId]));
+  }
+  function linesFromRemote(items) {
+    const externalIds = productExternalIds();
+    return (items || []).map((item) => ({ productId: externalIds[item.product_id] || item.productId, qty: Number(item.quantity || item.qty || 0) })).filter((line) => line.productId && line.qty > 0);
+  }
+  async function refreshCloudState() {
     if (!session()) return;
-    const tables = await Cloud.loadTables();
+    let products = await Cloud.loadProducts();
+    if (!products.length && ["admin", "manager"].includes(session().user.role)) products = await Cloud.seedProducts();
+    const [tables, orders, kitchenOrders] = await Promise.all([Cloud.loadTables(), Cloud.loadOrders(), Cloud.loadKitchenOrders()]);
     Cloud.saveRemoteTables(state.data, tables);
+    Cloud.saveRemoteProducts(state.data, products);
+    const openTables = {};
+    orders.forEach((order) => {
+      openTables[String(order.table_number)] = { cloudOrderId: order.id, openedAt: order.opened_at, sentAt: order.status === "sent" ? order.updated_at : null, lines: linesFromRemote(order.pos_order_items) };
+    });
+    state.data.tables = openTables;
+    state.data.kitchenOrders = kitchenOrders.map((order) => ({
+      id: order.order_id,
+      tableId: String(order.raw_payload?.tableNumber || String(order.delivery_detail || "").replace(/\D/g, "")),
+      status: order.status,
+      createdAt: order.created_at,
+      lines: (order.items || []).map((line) => ({ productId: line.productId, qty: Number(line.qty || 0) })).filter((line) => line.productId && line.qty > 0),
+    }));
     save();
   }
   function timeSince(value) {
@@ -39,15 +62,31 @@
     return "open";
   }
   function statusText(status) { return ({ free: "Libre", open: "Abierta", preparing: "En cocina", ready: "Lista", pending: "Pendiente" })[status] || status; }
-  function openTable(tableId) {
+  async function openTable(tableId) {
     if (!state.data.tables[tableId]) state.data.tables[tableId] = { openedAt: new Date().toISOString(), lines: [], sentAt: null };
     state.selectedTableId = tableId;
     state.category = "all";
     state.page = "comanda";
     save();
     render();
+    if (isCloudConnected()) {
+      try {
+        const order = await Cloud.openOrder(tableId);
+        const ticket = state.data.tables[tableId];
+        if (ticket) {
+          ticket.cloudOrderId = order.id;
+          if (order.pos_order_items?.length) ticket.lines = linesFromRemote(order.pos_order_items);
+          ticket.openedAt = order.opened_at || ticket.openedAt;
+          save();
+          render();
+        }
+      } catch (error) {
+        flash(error.message);
+        render();
+      }
+    }
   }
-  function changeLine(productId, amount) {
+  async function changeLine(productId, amount) {
     const ticket = state.data.tables[state.selectedTableId];
     if (!ticket) return;
     const line = ticket.lines.find((item) => item.productId === productId);
@@ -57,34 +96,74 @@
     if (line && !quantity) ticket.lines = ticket.lines.filter((item) => item.productId !== productId);
     save();
     render();
+    if (isCloudConnected()) {
+      try {
+        if (!ticket.cloudOrderId) ticket.cloudOrderId = (await Cloud.openOrder(state.selectedTableId)).id;
+        await Cloud.saveOrder(ticket.cloudOrderId, ticket.lines);
+      } catch (error) {
+        flash(error.message);
+        render();
+      }
+    }
   }
   function pendingKitchenLines(ticket) {
     const sent = new Map();
     state.data.kitchenOrders.filter((order) => order.tableId === state.selectedTableId && !["delivered", "cancelled"].includes(order.status)).flatMap((order) => order.lines).forEach((line) => sent.set(line.productId, (sent.get(line.productId) || 0) + line.qty));
     return ticket.lines.map((line) => ({ ...line, qty: Math.max(0, line.qty - (sent.get(line.productId) || 0)) })).filter((line) => line.qty > 0 && Core.isKitchenProduct(product(line.productId)));
   }
-  function sendKitchen() {
+  async function sendKitchen() {
     const ticket = state.data.tables[state.selectedTableId];
     const lines = ticket ? pendingKitchenLines(ticket) : [];
     if (!lines.length) { flash("No hay productos de cocina nuevos para enviar."); render(); return; }
     state.data.kitchenOrders.unshift({ id: `K-${state.data.sequence++}`, tableId: state.selectedTableId, status: "pending", createdAt: new Date().toISOString(), lines });
     ticket.sentAt = new Date().toISOString();
     save();
+    if (isCloudConnected()) {
+      try {
+        if (!ticket.cloudOrderId) ticket.cloudOrderId = (await Cloud.openOrder(state.selectedTableId)).id;
+        const result = await Cloud.sendOrderToKitchen(ticket.cloudOrderId, ticket.lines);
+        state.data.kitchenOrders[0].id = result.kitchenOrderId;
+        await refreshCloudState();
+      } catch (error) {
+        flash(error.message);
+        render();
+        return;
+      }
+    }
     flash(`Comanda de la mesa ${state.selectedTableId} enviada a cocina.`, "success");
     render();
   }
-  function moveKitchenOrder(orderId, status) {
+  async function moveKitchenOrder(orderId, status) {
     const order = state.data.kitchenOrders.find((item) => item.id === orderId);
     if (!order) return;
     order.status = status;
     save();
+    if (isCloudConnected()) {
+      try {
+        await Cloud.updateKitchenOrder(orderId, status === "delivered" ? "completed" : status);
+      } catch (error) {
+        flash(error.message);
+        render();
+        return;
+      }
+    }
     flash(status === "ready" ? `Mesa ${order.tableId} lista para servir.` : "Estado de cocina actualizado.", "success");
     render();
   }
-  function pay(method) {
+  async function pay(method) {
     const ticket = state.data.tables[state.selectedTableId];
     if (!ticket?.lines.length) { flash("Añade algún producto antes de cobrar."); render(); return; }
     const totalCents = total(ticket.lines);
+    if (isCloudConnected()) {
+      try {
+        if (!ticket.cloudOrderId) ticket.cloudOrderId = (await Cloud.openOrder(state.selectedTableId)).id;
+        await Cloud.payOrder(ticket.cloudOrderId, method, ticket.lines);
+      } catch (error) {
+        flash(error.message);
+        render();
+        return;
+      }
+    }
     state.data.sales.unshift({ id: `V-${state.data.sequence++}`, tableId: state.selectedTableId, totalCents, method, paidAt: new Date().toISOString(), lines: ticket.lines.map((line) => ({ ...line })) });
     state.data.kitchenOrders.forEach((order) => { if (order.tableId === state.selectedTableId && order.status === "ready") order.status = "delivered"; });
     delete state.data.tables[state.selectedTableId];
@@ -177,7 +256,7 @@
     const form = new FormData(event.target);
     Cloud.login(String(form.get("username") || ""), String(form.get("pin") || ""))
       .then(async () => {
-        await refreshCloudTables();
+        await refreshCloudState();
         state.modal = null;
         flash("Sesión iniciada. Las mesas están sincronizadas.", "success");
         render();
@@ -186,7 +265,7 @@
   });
   render();
   if (session()) {
-    refreshCloudTables().then(render).catch(() => {});
-    window.setInterval(() => refreshCloudTables().then(render).catch(() => {}), 15000);
+    refreshCloudState().then(render).catch(() => {});
+    window.setInterval(() => refreshCloudState().then(render).catch(() => {}), 15000);
   }
 })();
