@@ -6,7 +6,8 @@ El TPV actual funciona en modo local. Este documento activa la base central para
 
 1. Entra en `https://supabase.com/dashboard` y crea un proyecto llamado `bolera-contrastes-tpv` en región Europa.
 2. En **SQL Editor**, abre una consulta nueva, pega todo `supabase/001_tpv_core.sql` y ejecuta **Run**.
-3. Guarda el resultado o una captura si aparece un error. No borres las tablas existentes de `kitchen_orders`.
+3. Abre otra consulta, pega `supabase/002_tpv_api_grants.sql` y ejecuta **Run**.
+4. Guarda el resultado o una captura si aparece un error. No borres las tablas existentes de `kitchen_orders`.
 
 ## 2. Configurar Vercel
 
