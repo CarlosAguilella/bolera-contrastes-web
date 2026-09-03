@@ -5,6 +5,7 @@
 
   const state = { tab: "ventas", search: "", editingId: null, editingTableId: null, deletingTableId: null, data: Core.loadData(), toast: null };
   let toastTimer = null;
+  let draggedTable = null;
 
   function escapeHtml(value) {
     return String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
@@ -61,9 +62,12 @@
     const products = Core.products.filter((item) => `${item.name} ${item.category}`.toLocaleLowerCase("es").includes(query));
     return `<section class="tpv-gestion-content"><section class="tpv-gestion-card"><header><div><h2>Catálogo del restaurante</h2><span>${products.length} artículos · PVP usado por el TPV</span></div><label class="tpv-search"><span>⌕</span><input type="search" value="${escapeHtml(state.search)}" placeholder="Buscar artículo" data-search-products></label></header><div class="tpv-articles-table"><div class="tpv-articles-row is-heading"><span>Artículo</span><span>Familia</span><span>PVP</span><span>Coste compra</span><span>Margen</span><span></span></div>${products.map((item) => { const pvp = product(item.id).priceCents; const cost = state.data.costs?.[item.id]; const margin = Number.isFinite(Number(cost)) ? pvp - Number(cost) : null; return `<div class="tpv-articles-row"><div><b>${escapeHtml(item.name)}</b><small>${escapeHtml(item.description)}</small></div><span>${escapeHtml(item.category)}</span><strong>${Core.formatEuros(pvp)}</strong><span>${margin === null ? `<em>Pendiente</em>` : Core.formatEuros(cost)}</span><span>${margin === null ? "—" : Core.formatEuros(margin)}</span><button class="tpv-edit-button" type="button" data-edit-product="${item.id}">Editar</button></div>`; }).join("") || `<p class="tpv-gestion-empty">No se han encontrado artículos.</p>`}</div></section><aside class="tpv-management-note"><h2>Sobre los costes</h2><p>Los costes de compra se muestran como pendientes hasta que se registren. El margen es orientativo y no incluye impuestos ni otros costes.</p><p>Los precios guardados aquí se aplican en el TPV de camarero de este mismo navegador.</p></aside></section>`;
   }
+  function renderLayoutMap(tables) {
+    return `<section class="tpv-gestion-card tpv-layout-editor"><header><div><h2>Mapa de mesas</h2><span>Arrastra una mesa para cambiar su posición en el plano</span></div><span class="tpv-layout-editor__hint">Cambios guardados al soltar</span></header><div class="tpv-layout-map-scroll"><div class="tpv-layout-map" data-layout-map><div class="tpv-layout-map__bar">Barra</div><div class="tpv-layout-map__plants" aria-hidden="true">●<br>●<br>●<br>●</div>${tables.map((table) => `<button class="tpv-layout-table ${table.area === "wall" ? "is-wall" : ""}" type="button" style="--x:${table.x};--y:${table.y}" data-layout-table="${table.id}" aria-label="Mover mesa ${table.id}"><span></span><b>${table.id}</b></button>`).join("")}</div></div></section>`;
+  }
   function renderTables() {
     const tables = tableLayout();
-    return `<section class="tpv-gestion-content"><section class="tpv-gestion-card"><header><div><h2>Mesas configuradas</h2><span>${tables.length} mesas · los números son únicos</span></div><form class="tpv-table-add" data-table-add-form><label>Nueva mesa<input name="tableNumber" inputmode="numeric" maxlength="3" placeholder="Ej. 28" required></label><label>Zona<select name="area"><option value="sala">Sala</option><option value="wall">Pared</option></select></label><button class="tpv-action" type="submit">Añadir mesa</button></form></header><div class="tpv-table-settings"><div class="tpv-table-settings__head"><span>Número</span><span>Zona</span><span>Estado</span><span></span></div>${tables.map((table) => `<div class="tpv-table-settings__row"><strong>Mesa ${table.id}</strong><span class="tpv-zone">${table.area === "wall" ? "Pared" : "Sala"}</span><span class="tpv-table-state ${isTableOccupied(table.id) ? "is-open" : ""}">${isTableOccupied(table.id) ? "Comanda activa" : "Libre"}</span><div><button class="tpv-edit-button" type="button" data-edit-table="${table.id}">Editar</button><button class="tpv-delete-button" type="button" data-delete-table="${table.id}" ${isTableOccupied(table.id) ? "disabled title=\"Cierra la comanda antes de eliminarla\"" : ""}>Quitar</button></div></div>`).join("")}</div></section><aside class="tpv-management-note"><h2>Cómo funciona</h2><p>Al cambiar un número se mantiene su comanda, pedidos de cocina y ventas asociadas. No se permite repetir ningún número.</p><p>Por seguridad, una mesa con comanda o pedido de cocina activo no puede eliminarse.</p><p>Las nuevas mesas aparecen automáticamente en el plano; después podremos añadir un editor visual para colocarlas exactamente.</p></aside></section>`;
+    return `<section class="tpv-gestion-content">${renderLayoutMap(tables)}<section class="tpv-gestion-card"><header><div><h2>Mesas configuradas</h2><span>${tables.length} mesas · los números son únicos</span></div><form class="tpv-table-add" data-table-add-form><label>Nueva mesa<input name="tableNumber" inputmode="numeric" maxlength="3" placeholder="Ej. 28" required></label><label>Zona<select name="area"><option value="sala">Sala</option><option value="wall">Pared</option></select></label><button class="tpv-action" type="submit">Añadir mesa</button></form></header><div class="tpv-table-settings"><div class="tpv-table-settings__head"><span>Número</span><span>Zona</span><span>Estado</span><span></span></div>${tables.map((table) => `<div class="tpv-table-settings__row"><strong>Mesa ${table.id}</strong><span class="tpv-zone">${table.area === "wall" ? "Pared" : "Sala"}</span><span class="tpv-table-state ${isTableOccupied(table.id) ? "is-open" : ""}">${isTableOccupied(table.id) ? "Comanda activa" : "Libre"}</span><div><button class="tpv-edit-button" type="button" data-edit-table="${table.id}">Editar</button><button class="tpv-delete-button" type="button" data-delete-table="${table.id}" ${isTableOccupied(table.id) ? "disabled title=\"Cierra la comanda antes de eliminarla\"" : ""}>Quitar</button></div></div>`).join("")}</div></section><aside class="tpv-management-note"><h2>Cómo funciona</h2><p>Al cambiar un número se mantiene su comanda, pedidos de cocina y ventas asociadas. No se permite repetir ningún número.</p><p>Por seguridad, una mesa con comanda o pedido de cocina activo no puede eliminarse.</p><p>Puedes arrastrar cada mesa en el mapa superior para colocarla en la zona real del local.</p></aside></section>`;
   }
   function priceModal() {
     if (!state.editingId) return "";
@@ -105,6 +109,41 @@
       render();
     }
   });
+  root.addEventListener("pointerdown", (event) => {
+    const table = event.target.closest("[data-layout-table]");
+    if (!table) return;
+    const map = table.closest("[data-layout-map]");
+    if (!map) return;
+    draggedTable = { id: table.dataset.layoutTable, element: table, map, x: Number(table.style.getPropertyValue("--x")), y: Number(table.style.getPropertyValue("--y")) };
+    table.classList.add("is-dragging");
+    if (table.setPointerCapture) table.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  });
+  function moveDraggedTable(event) {
+    if (!draggedTable) return;
+    const rect = draggedTable.map.getBoundingClientRect();
+    const x = Math.min(95, Math.max(5, ((event.clientX - rect.left) / rect.width) * 100));
+    const y = Math.min(91, Math.max(6, ((event.clientY - rect.top) / rect.height) * 100));
+    draggedTable.x = Math.round(x * 10) / 10;
+    draggedTable.y = Math.round(y * 10) / 10;
+    draggedTable.element.style.setProperty("--x", draggedTable.x);
+    draggedTable.element.style.setProperty("--y", draggedTable.y);
+  }
+  function finishDraggedTable() {
+    if (!draggedTable) return;
+    const moved = draggedTable;
+    moved.element.classList.remove("is-dragging");
+    state.data.tableLayout = tableLayout().map((table) => table.id === moved.id ? { ...table, x: moved.x, y: moved.y } : table);
+    draggedTable = null;
+    save();
+    flash(`Posición de mesa ${moved.id} guardada.`);
+    render();
+  }
+  if (window.addEventListener) {
+    window.addEventListener("pointermove", moveDraggedTable);
+    window.addEventListener("pointerup", finishDraggedTable);
+    window.addEventListener("pointercancel", finishDraggedTable);
+  }
   root.addEventListener("input", (event) => {
     if (!event.target.matches("[data-search-products]")) return;
     state.search = event.target.value;
