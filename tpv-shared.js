@@ -25,11 +25,38 @@
     ["21", 90, 16, "label"], ["22", 92, 25, "wall"], ["23", 92, 36, "wall"],
     ["24", 92, 47, "wall"], ["25", 92, 58, "wall"], ["26", 92, 69, "wall"], ["27", 92, 80, "wall"],
   ];
-  const tables = tablePositions.map(([id, x, y, area]) => ({ id, name: `Mesa ${id}`, x, y, area: area || "sala" }));
+  const defaultTables = tablePositions.map(([id, x, y, area]) => ({ id, name: `Mesa ${id}`, x, y, area: area || "sala" }));
+
+  function normaliseTableLayout(layout) {
+    const seen = new Set();
+    const source = Array.isArray(layout) && layout.length ? layout : defaultTables;
+    return source
+      .map((table, index) => {
+        const id = String(table?.id || "").trim();
+        if (!/^\d{1,3}$/.test(id) || seen.has(id)) return null;
+        seen.add(id);
+        return {
+          id,
+          name: `Mesa ${id}`,
+          x: Number.isFinite(Number(table.x)) ? Number(table.x) : 12 + (index % 5) * 14,
+          y: Number.isFinite(Number(table.y)) ? Number(table.y) : 8 + Math.floor(index / 5) * 16,
+          area: table.area === "wall" ? "wall" : "sala"
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function getTables(data) { return normaliseTableLayout(data?.tableLayout); }
+
+  function suggestedTablePosition(layout) {
+    const index = normaliseTableLayout(layout).filter((table) => table.area === "sala").length;
+    return { x: 12 + (index % 5) * 14, y: 8 + Math.floor(index / 5) * 16 };
+  }
 
   function initialData() {
     const now = Date.now();
     return {
+      tableLayout: defaultTables.map((table) => ({ ...table })),
       tables: {
         "2": { openedAt: new Date(now - 36 * 60000).toISOString(), lines: [{ productId: "bolera-94", qty: 2 }, { productId: "bolera-90", qty: 1 }], sentAt: new Date(now - 22 * 60000).toISOString() },
         "7": { openedAt: new Date(now - 19 * 60000).toISOString(), lines: [{ productId: "bolera-11", qty: 3 }, { productId: "bolera-10", qty: 1 }], sentAt: new Date(now - 12 * 60000).toISOString() },
@@ -53,6 +80,8 @@
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "");
       if (saved && saved.tables && saved.kitchenOrders && saved.sales) {
         if (!saved.costs) saved.costs = {};
+        if (!saved.tableLayout) saved.tableLayout = defaultTables.map((table) => ({ ...table }));
+        saved.tableLayout = normaliseTableLayout(saved.tableLayout);
         return saved;
       }
     } catch (error) {}
@@ -83,5 +112,5 @@
     return `${(Number(cents || 0) / 100).toFixed(2).replace(".", ",")} €`;
   }
 
-  window.BC_TPV = { STORAGE_KEY, products, tables, initialData, loadData, saveData, getProduct, isKitchenProduct, formatEuros };
+  window.BC_TPV = { STORAGE_KEY, products, initialData, loadData, saveData, getProduct, getTables, suggestedTablePosition, isKitchenProduct, formatEuros };
 })();
