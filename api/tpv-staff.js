@@ -10,6 +10,7 @@ const {
   sendError,
   supabaseRequest,
 } = require("./_tpv");
+const crypto = require("crypto");
 
 const ROLES = new Set(["admin", "manager", "waiter", "kitchen"]);
 
@@ -44,7 +45,7 @@ module.exports = async function handler(req, res) {
       }
       const users = await supabaseRequest(config, "staff_users", {
         method: "POST",
-        body: JSON.stringify({ ...input, pin_digest: createPinDigest(body.pin) }),
+        body: JSON.stringify({ ...input, pin_digest: createPinDigest(input.role === "waiter" ? crypto.randomInt(1000000000, 9999999999) : body.pin) }),
       });
       const user = Array.isArray(users) ? users[0] : users;
       await audit(config, session.sub, "staff_users", user.id, "create", { username: user.username, role: user.role });

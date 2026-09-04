@@ -28,8 +28,8 @@ module.exports = async function handler(req, res) {
     const body = await readRequestBody(req);
     const username = cleanText(body.username, 40).toLowerCase();
     const pin = cleanText(body.pin, 32);
-    if (!/^[a-z0-9._-]{3,40}$/.test(username) || !/^\d{4,10}$/.test(pin)) {
-      return res.status(400).json({ ok: false, error: "Indica un usuario y un PIN válidos." });
+    if (!/^[a-z0-9._-]{3,40}$/.test(username)) {
+      return res.status(400).json({ ok: false, error: "Selecciona un acceso válido." });
     }
 
     const users = await supabaseRequest(
@@ -38,7 +38,7 @@ module.exports = async function handler(req, res) {
       { method: "GET" }
     );
     const user = Array.isArray(users) ? users[0] : null;
-    if (!user || !verifyPin(pin, user.pin_digest)) {
+    if (!user || (user.role !== "waiter" && (!/^\d{4,10}$/.test(pin) || !verifyPin(pin, user.pin_digest)))) {
       return res.status(401).json({ ok: false, error: "Usuario o PIN incorrectos." });
     }
 
