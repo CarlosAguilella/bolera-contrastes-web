@@ -6,6 +6,7 @@
 
   const state = { page: "sala", selectedTableId: null, category: "all", modal: null, loginUsername: "carlos", toast: null, data: Core.loadData() };
   let toastTimer = null;
+  const orderSyncQueues = new Map();
 
   function escapeHtml(value) {
     return String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
@@ -23,6 +24,23 @@
     const externalIds = productExternalIds();
     return (items || []).map((item) => ({ productId: externalIds[item.product_id] || item.productId, qty: Number(item.quantity || item.qty || 0) })).filter((line) => line.productId && line.qty > 0);
   }
+  function queueOrderSave(tableId) {
+    const ticket = state.data.tables[tableId];
+    if (!ticket || !isCloudConnected()) return Promise.resolve();
+    ticket.syncPending = true;
+    const previous = orderSyncQueues.get(tableId) || Promise.resolve();
+    const task = previous.then(async () => {
+      if (!ticket.cloudOrderId) ticket.cloudOrderId = (await Cloud.openOrder(tableId)).id;
+      await Cloud.saveOrder(ticket.cloudOrderId, ticket.lines.map((line) => ({ ...line })));
+    });
+    orderSyncQueues.set(tableId, task);
+    return task.finally(() => {
+      if (orderSyncQueues.get(tableId) === task) {
+        ticket.syncPending = false;
+        orderSyncQueues.delete(tableId);
+      }
+    });
+  }
   async function refreshCloudState() {
     if (!session()) return;
     let products = await Cloud.loadProducts();
@@ -30,9 +48,15 @@
     const [tables, orders, kitchenOrders] = await Promise.all([Cloud.loadTables(), Cloud.loadOrders(), Cloud.loadKitchenOrders()]);
     Cloud.saveRemoteTables(state.data, tables);
     Cloud.saveRemoteProducts(state.data, products);
+    const existingTables = state.data.tables;
     const openTables = {};
     orders.forEach((order) => {
-      openTables[String(order.table_number)] = { cloudOrderId: order.id, openedAt: order.opened_at, sentAt: order.status === "sent" ? order.updated_at : null, lines: linesFromRemote(order.pos_order_items) };
+      const tableId = String(order.table_number);
+      const localTicket = existingTables[tableId];
+      openTables[tableId] = localTicket?.syncPending ? localTicket : { cloudOrderId: order.id, openedAt: order.opened_at, sentAt: order.status === "sent" ? order.updated_at : null, lines: linesFromRemote(order.pos_order_items) };
+    });
+    Object.entries(existingTables).forEach(([tableId, ticket]) => {
+      if (ticket.syncPending && !openTables[tableId]) openTables[tableId] = ticket;
     });
     state.data.tables = openTables;
     state.data.kitchenOrders = kitchenOrders.map((order) => ({
@@ -71,16 +95,19 @@
     render();
     if (isCloudConnected()) {
       try {
+        state.data.tables[tableId].syncPending = true;
         const order = await Cloud.openOrder(tableId);
         const ticket = state.data.tables[tableId];
         if (ticket) {
           ticket.cloudOrderId = order.id;
           if (order.pos_order_items?.length) ticket.lines = linesFromRemote(order.pos_order_items);
           ticket.openedAt = order.opened_at || ticket.openedAt;
+          ticket.syncPending = false;
           save();
           render();
         }
       } catch (error) {
+        if (state.data.tables[tableId]) state.data.tables[tableId].syncPending = false;
         flash(error.message);
         render();
       }
@@ -98,8 +125,7 @@
     render();
     if (isCloudConnected()) {
       try {
-        if (!ticket.cloudOrderId) ticket.cloudOrderId = (await Cloud.openOrder(state.selectedTableId)).id;
-        await Cloud.saveOrder(ticket.cloudOrderId, ticket.lines);
+        await queueOrderSave(state.selectedTableId);
       } catch (error) {
         flash(error.message);
         render();
@@ -120,7 +146,7 @@
     save();
     if (isCloudConnected()) {
       try {
-        if (!ticket.cloudOrderId) ticket.cloudOrderId = (await Cloud.openOrder(state.selectedTableId)).id;
+        await queueOrderSave(state.selectedTableId);
         const result = await Cloud.sendOrderToKitchen(ticket.cloudOrderId, ticket.lines);
         state.data.kitchenOrders[0].id = result.kitchenOrderId;
         await refreshCloudState();
@@ -156,7 +182,7 @@
     const totalCents = total(ticket.lines);
     if (isCloudConnected()) {
       try {
-        if (!ticket.cloudOrderId) ticket.cloudOrderId = (await Cloud.openOrder(state.selectedTableId)).id;
+        await queueOrderSave(state.selectedTableId);
         await Cloud.payOrder(ticket.cloudOrderId, method, ticket.lines);
       } catch (error) {
         flash(error.message);
