@@ -267,6 +267,7 @@
     if (button.dataset.loginUser) { state.loginUsername = button.dataset.loginUser; render(); return; }
     if (button.dataset.openLogin !== undefined) { state.modal = "login"; render(); return; }
     if (button.dataset.logout !== undefined) { Cloud.logout(); flash("Sesión cerrada."); render(); return; }
+    if (button.dataset.nav === "cocina") { window.location.href = "tpv-cocina.html"; return; }
     if (button.dataset.nav) { state.page = button.dataset.nav; state.selectedTableId = null; state.modal = null; render(); return; }
     if (button.dataset.openTable) { openTable(button.dataset.openTable); return; }
     if (button.dataset.category) { state.category = button.dataset.category; render(); return; }
