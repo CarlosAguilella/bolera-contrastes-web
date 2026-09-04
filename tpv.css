@@ -423,8 +423,11 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .kitchen-screen-card li > b { color: #277443; font-size: 18px; }
 .kitchen-screen-card li small { display: block; margin-top: 4px; color: #777773; font-size: 12px; }
 .kitchen-screen-card button { width: 100%; min-height: 48px; border: 0; border-radius: 9px; color: #fff; background: #151515; font-size: 14px; font-weight: 800; cursor: pointer; }
+.kitchen-screen-card__actions { display: grid; gap: 8px; }
+.kitchen-screen-card button.is-secondary { border: 1px solid #cfcfca; color: #333; background: #f6f6f2; }
 .kitchen-screen-column.is-preparing .kitchen-screen-card button { color: #2e1e00; background: #e8ba52; }
 .kitchen-screen-column.is-ready .kitchen-screen-card button { color: #07351c; background: #71d292; }
+.kitchen-screen-column.is-preparing .kitchen-screen-card button.is-secondary, .kitchen-screen-column.is-ready .kitchen-screen-card button.is-secondary { color: #333; background: #f6f6f2; }
 .kitchen-screen-card__readonly { margin: 0; color: #777773; font-size: 12px; }
 .kitchen-screen-empty { margin: 42px 0; color: #a4a4a0; text-align: center; font-size: 14px; }
 .kitchen-screen-welcome { display: grid; min-height: calc(100vh - 94px); place-content: center; padding: 24px; text-align: center; }

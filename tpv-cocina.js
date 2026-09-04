@@ -67,7 +67,8 @@
       : order.status === "preparing"
         ? ["ready", "Marcar como lista"]
         : ["completed", "Entregada"];
-    return `<article class="kitchen-screen-card ${isLate(order) ? "is-late" : ""}"><header><div><span>Mesa</span><strong>${escapeHtml(order.tableNumber)}</strong></div><b>${age(order.createdAt)}</b></header><ul>${order.lines.map((line) => `<li><b>${line.qty}×</b><span>${escapeHtml(productName(line))}${line.variant ? `<small>${escapeHtml(line.variant)}</small>` : ""}</span></li>`).join("")}</ul>${canManageKitchen() ? `<button type="button" data-kitchen-status="${action[0]}" data-kitchen-order="${escapeHtml(order.id)}">${action[1]}</button>` : `<p class="kitchen-screen-card__readonly">Solo cocina o administración puede cambiar el estado.</p>`}</article>`;
+    const backAction = order.status === "preparing" ? ["pending", "Volver a pendientes"] : order.status === "ready" ? ["preparing", "Volver a preparación"] : null;
+    return `<article class="kitchen-screen-card ${isLate(order) ? "is-late" : ""}"><header><div><span>Mesa</span><strong>${escapeHtml(order.tableNumber)}</strong></div><b>${age(order.createdAt)}</b></header><ul>${order.lines.map((line) => `<li><b>${line.qty}×</b><span>${escapeHtml(productName(line))}${line.variant ? `<small>${escapeHtml(line.variant)}</small>` : ""}</span></li>`).join("")}</ul>${canManageKitchen() ? `<div class="kitchen-screen-card__actions">${backAction ? `<button type="button" class="is-secondary" data-kitchen-status="${backAction[0]}" data-kitchen-order="${escapeHtml(order.id)}">${backAction[1]}</button>` : ""}<button type="button" data-kitchen-status="${action[0]}" data-kitchen-order="${escapeHtml(order.id)}">${action[1]}</button></div>` : `<p class="kitchen-screen-card__readonly">Solo cocina o administración puede cambiar el estado.</p>`}</article>`;
   }
   function column(status, title) {
     const orders = state.orders.filter((order) => order.status === status);
