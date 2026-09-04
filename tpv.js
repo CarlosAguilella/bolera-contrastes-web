@@ -40,7 +40,7 @@
       tableId: String(order.raw_payload?.tableNumber || String(order.delivery_detail || "").replace(/\D/g, "")),
       status: order.status,
       createdAt: order.created_at,
-      lines: (order.items || []).map((line) => ({ productId: line.productId, qty: Number(line.qty || 0) })).filter((line) => line.productId && line.qty > 0),
+      lines: (order.items || []).map((line) => ({ productId: productExternalIds()[line.productId] || line.productId, qty: Number(line.qty || 0) })).filter((line) => line.productId && line.qty > 0),
     }));
     save();
   }
