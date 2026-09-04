@@ -80,7 +80,7 @@
   function tableStatus(tableId) {
     const ticket = state.data.tables[tableId];
     if (!ticket) return "free";
-    const orders = state.data.kitchenOrders.filter((order) => order.tableId === tableId && !["delivered", "cancelled"].includes(order.status));
+    const orders = state.data.kitchenOrders.filter((order) => order.tableId === tableId && !["delivered", "completed", "cancelled"].includes(order.status));
     if (orders.some((order) => order.status === "ready")) return "ready";
     if (orders.some((order) => order.status === "preparing")) return "preparing";
     return "open";
@@ -134,7 +134,7 @@
   }
   function pendingKitchenLines(ticket) {
     const sent = new Map();
-    state.data.kitchenOrders.filter((order) => order.tableId === state.selectedTableId && !["delivered", "cancelled"].includes(order.status)).flatMap((order) => order.lines).forEach((line) => sent.set(line.productId, (sent.get(line.productId) || 0) + line.qty));
+    state.data.kitchenOrders.filter((order) => order.tableId === state.selectedTableId && !["delivered", "completed", "cancelled"].includes(order.status)).flatMap((order) => order.lines).forEach((line) => sent.set(line.productId, (sent.get(line.productId) || 0) + line.qty));
     return ticket.lines.map((line) => ({ ...line, qty: Math.max(0, line.qty - (sent.get(line.productId) || 0)) })).filter((line) => line.qty > 0 && Core.isKitchenProduct(product(line.productId)));
   }
   async function sendKitchen() {
@@ -147,8 +147,7 @@
     if (isCloudConnected()) {
       try {
         await queueOrderSave(state.selectedTableId);
-        const result = await Cloud.sendOrderToKitchen(ticket.cloudOrderId, ticket.lines);
-        state.data.kitchenOrders[0].id = result.kitchenOrderId;
+        await Cloud.sendOrderToKitchen(ticket.cloudOrderId, ticket.lines);
         await refreshCloudState();
       } catch (error) {
         flash(error.message);

@@ -60,7 +60,7 @@
   function tableLayout() { return Core.getTables(state.data); }
   function validTableNumber(value) { return /^\d{1,3}$/.test(String(value || "").trim()); }
   function isTableOccupied(tableId) {
-    return Boolean(state.data.tables[tableId]) || state.data.kitchenOrders.some((order) => order.tableId === tableId && !["delivered", "cancelled"].includes(order.status));
+    return Boolean(state.data.tables[tableId]) || state.data.kitchenOrders.some((order) => order.tableId === tableId && !["delivered", "completed", "cancelled"].includes(order.status));
   }
   function moveTableReferences(previousId, nextId) {
     if (previousId === nextId) return;

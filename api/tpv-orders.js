@@ -144,29 +144,30 @@ module.exports = async function handler(req, res) {
       const detail = await replaceOrderLines(config, orderId, body.lines);
       const items = kitchenItems(detail.items);
       if (!items.length) return res.status(400).json({ ok: false, error: "No hay productos de cocina para enviar." });
-      const kitchenOrderId = `TPV-${orderId}`;
-      await supabaseRequest(config, "kitchen_orders?on_conflict=order_id", {
+      const dispatchId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const kitchenOrders = items.map((item) => ({
+        order_id: `TPV-${orderId}-${dispatchId}-${item.productId}`,
+        status: "pending",
+        source: "tpv",
+        payment_status: "unpaid",
+        amount_cents: item.unitPriceCents * item.qty,
+        subtotal_cents: item.unitPriceCents * item.qty,
+        delivery_method: "room",
+        delivery_detail: `Mesa ${currentOrder.table_number}`,
+        items: [item],
+        raw_payload: { posOrderId: orderId, tableNumber: currentOrder.table_number, dispatchId },
+      }));
+      await supabaseRequest(config, "kitchen_orders", {
         method: "POST",
-        body: JSON.stringify({
-          order_id: kitchenOrderId,
-          status: "pending",
-          source: "tpv",
-          payment_status: "unpaid",
-          amount_cents: detail.totalCents,
-          subtotal_cents: detail.totalCents,
-          delivery_method: "room",
-          delivery_detail: `Mesa ${currentOrder.table_number}`,
-          items,
-          raw_payload: { posOrderId: orderId, tableNumber: currentOrder.table_number },
-        }),
-        headers: { Prefer: "return=minimal,resolution=merge-duplicates" },
+        body: JSON.stringify(kitchenOrders),
+        headers: { Prefer: "return=minimal" },
       });
       const orders = await supabaseRequest(config, `pos_orders?id=eq.${encodeURIComponent(orderId)}`, {
         method: "PATCH",
         body: JSON.stringify({ status: "sent", subtotal_cents: detail.totalCents, total_cents: detail.totalCents }),
       });
       await audit(config, session.sub, "pos_orders", orderId, "send_kitchen", { tableNumber: currentOrder.table_number, lines: items.length });
-      return res.status(200).json({ ok: true, order: Array.isArray(orders) ? orders[0] : orders, kitchenOrderId });
+      return res.status(200).json({ ok: true, order: Array.isArray(orders) ? orders[0] : orders, kitchenOrderIds: kitchenOrders.map((order) => order.order_id) });
     }
 
     if (req.method === "PATCH" && body.action === "pay") {
