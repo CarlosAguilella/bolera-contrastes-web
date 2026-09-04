@@ -4,7 +4,7 @@
   const root = document.getElementById("tpv-gestion-root");
   if (!Core || !root) return;
 
-  const state = { tab: "ventas", search: "", editingId: null, editingTableId: null, deletingTableId: null, loginOpen: false, data: Core.loadData(), toast: null };
+  const state = { tab: "ventas", search: "", staff: [], editingId: null, editingTableId: null, deletingTableId: null, loginOpen: false, loginUsername: "carlos", data: Core.loadData(), toast: null };
   let toastTimer = null;
   let draggedTable = null;
 
@@ -42,6 +42,10 @@
     }));
     save();
   }
+  async function refreshCloudStaff() {
+    if (!isCloudConnected() || !["admin", "manager"].includes(session().user.role)) return;
+    state.staff = await Cloud.loadStaff();
+  }
   function flash(message) {
     state.toast = message;
     clearTimeout(toastTimer);
@@ -68,10 +72,10 @@
     state.data.sales.forEach((sale) => { if (sale.tableId === previousId) sale.tableId = nextId; });
   }
   function nav() {
-    return `<aside class="tpv-management-sidebar"><a class="tpv-brand" href="tpv.html"><span class="tpv-brand__mark">C</span><span class="tpv-brand__type"><strong>Contrastes</strong><small>Gestión TPV</small></span></a><nav><a href="tpv.html">← Volver al TPV</a><button type="button" class="${state.tab === "ventas" ? "is-active" : ""}" data-tab="ventas">Ventas</button><button type="button" class="${state.tab === "articulos" ? "is-active" : ""}" data-tab="articulos">Artículos y precios</button><button type="button" class="${state.tab === "sala" ? "is-active" : ""}" data-tab="sala">Sala y mesas</button><button type="button" class="is-disabled" disabled>Clientes <small>Próximamente</small></button><button type="button" class="is-disabled" disabled>Proveedores <small>Próximamente</small></button></nav><p>Panel interno<br>Datos guardados en este dispositivo.</p></aside>`;
+    return `<aside class="tpv-management-sidebar"><a class="tpv-brand" href="tpv.html"><span class="tpv-brand__mark">C</span><span class="tpv-brand__type"><strong>Contrastes</strong><small>Gestión TPV</small></span></a><nav><a href="tpv.html">← Volver al TPV</a><button type="button" class="${state.tab === "ventas" ? "is-active" : ""}" data-tab="ventas">Ventas</button><button type="button" class="${state.tab === "articulos" ? "is-active" : ""}" data-tab="articulos">Artículos y precios</button><button type="button" class="${state.tab === "sala" ? "is-active" : ""}" data-tab="sala">Sala y mesas</button><button type="button" class="${state.tab === "personal" ? "is-active" : ""}" data-tab="personal">Personal y PIN</button><button type="button" class="is-disabled" disabled>Clientes <small>Próximamente</small></button><button type="button" class="is-disabled" disabled>Proveedores <small>Próximamente</small></button></nav><p>Panel interno<br>Datos guardados en la base central.</p></aside>`;
   }
   function topbar() {
-    const title = { ventas: "Ventas", articulos: "Artículos y precios", sala: "Sala y mesas" }[state.tab];
+    const title = { ventas: "Ventas", articulos: "Artículos y precios", sala: "Sala y mesas", personal: "Personal y PIN" }[state.tab];
     const user = session()?.user;
     return `<header class="tpv-gestion-topbar"><div><span>Administración</span><h1>${title}</h1></div><div class="tpv-gestion-topbar__actions"><span class="tpv-live">${user ? `Base central · ${escapeHtml(user.displayName)}` : "Datos locales"}</span>${user ? `<button class="tpv-action is-secondary" type="button" data-logout>Salir</button>` : `<button class="tpv-action is-secondary" type="button" data-open-login>Acceder</button>`}<a class="tpv-action is-secondary" href="tpv.html">TPV camarero</a></div></header>`;
   }
@@ -100,6 +104,13 @@
     const tables = tableLayout();
     return `<section class="tpv-gestion-content">${renderLayoutMap(tables)}<section class="tpv-gestion-card"><header><div><h2>Mesas configuradas</h2><span>${tables.length} mesas · los números son únicos</span></div><form class="tpv-table-add" data-table-add-form><label>Nueva mesa<input name="tableNumber" inputmode="numeric" maxlength="3" placeholder="Ej. 28" required></label><label>Zona<select name="area"><option value="sala">Sala</option><option value="wall">Pared</option></select></label><button class="tpv-action" type="submit">Añadir mesa</button></form></header><div class="tpv-table-settings"><div class="tpv-table-settings__head"><span>Número</span><span>Zona</span><span>Estado</span><span></span></div>${tables.map((table) => `<div class="tpv-table-settings__row"><strong>Mesa ${table.id}</strong><span class="tpv-zone">${table.area === "wall" ? "Pared" : "Sala"}</span><span class="tpv-table-state ${isTableOccupied(table.id) ? "is-open" : ""}">${isTableOccupied(table.id) ? "Comanda activa" : "Libre"}</span><div><button class="tpv-edit-button" type="button" data-edit-table="${table.id}">Editar</button><button class="tpv-delete-button" type="button" data-delete-table="${table.id}" ${isTableOccupied(table.id) ? "disabled title=\"Cierra la comanda antes de eliminarla\"" : ""}>Quitar</button></div></div>`).join("")}</div></section><aside class="tpv-management-note"><h2>Cómo funciona</h2><p>Al cambiar un número se mantiene su comanda, pedidos de cocina y ventas asociadas. No se permite repetir ningún número.</p><p>Por seguridad, una mesa con comanda o pedido de cocina activo no puede eliminarse.</p><p>Puedes arrastrar cada mesa en el mapa superior para colocarla en la zona real del local.</p></aside></section>`;
   }
+  function roleLabel(role) { return ({ admin: "Administrador", manager: "Gestor", waiter: "Camarero/a", kitchen: "Cocina" })[role] || role; }
+  function renderStaff() {
+    const user = session()?.user;
+    if (!user) return `<section class="tpv-gestion-content"><section class="tpv-gestion-card"><h2>Acceso requerido</h2><p class="tpv-gestion-empty">Inicia sesión como administrador para gestionar al personal.</p></section></section>`;
+    const canManage = user.role === "admin";
+    return `<section class="tpv-gestion-content"><section class="tpv-gestion-card"><header><div><h2>Accesos del equipo</h2><span>Cada persona entra con su propio PIN</span></div></header>${canManage ? `<form class="tpv-staff-form" data-staff-form><label>Nombre<input name="displayName" placeholder="Matías o Lucía" required></label><label>Usuario<input name="username" pattern="[a-z0-9._-]{3,40}" placeholder="matias" required></label><label>Rol<select name="role"><option value="waiter">Camarero/a</option><option value="kitchen">Cocina</option><option value="manager">Gestor</option><option value="admin">Administrador</option></select></label><label>PIN<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,10}" minlength="4" maxlength="10" required></label><button class="tpv-action" type="submit">Crear acceso</button></form>` : `<p class="tpv-gestion-empty">Tu rol permite ver el personal, pero no crear ni cambiar PIN.</p>`}<div class="tpv-staff-list">${state.staff.length ? state.staff.map((staff) => `<article><div><b>${escapeHtml(staff.displayName)}</b><small>@${escapeHtml(staff.username)} · ${roleLabel(staff.role)}</small></div><span class="tpv-table-state ${staff.active ? "" : "is-open"}">${staff.active ? "Activo" : "Desactivado"}</span></article>`).join("") : `<p class="tpv-gestion-empty">Cargando personal…</p>`}</div></section><aside class="tpv-management-note"><h2>Los accesos actuales</h2><p>Crea primero los perfiles de <strong>Matías</strong> y <strong>Lucía</strong> con rol Camarero/a. Cada uno debe tener un PIN distinto.</p><p>El perfil Administrador conserva acceso completo a precios, ventas y configuración.</p></aside></section>`;
+  }
   function priceModal() {
     if (!state.editingId) return "";
     const item = product(state.editingId);
@@ -119,16 +130,18 @@
   }
   function loginModal() {
     if (!state.loginOpen) return "";
-    return `<div class="tpv-modal-backdrop"><form class="tpv-modal" data-login-form><button class="tpv-modal__close" type="button" data-close-login aria-label="Cerrar">×</button><h2>Acceso al TPV</h2><p>Inicia sesión para sincronizar las mesas con la base central.</p><label>Usuario<input name="username" autocomplete="username" minlength="3" required></label><label>PIN<input name="pin" inputmode="numeric" autocomplete="current-password" pattern="[0-9]{4,10}" minlength="4" maxlength="10" required></label><div class="tpv-modal__actions"><button class="tpv-action is-secondary" type="button" data-close-login>Cancelar</button><button class="tpv-action" type="submit">Entrar</button></div></form></div>`;
+    const options = [["matias", "Matías", "Camarero"], ["lucia", "Lucía", "Camarera"], ["carlos", "Administrador", "Carlos"]];
+    return `<div class="tpv-modal-backdrop"><form class="tpv-modal" data-login-form><button class="tpv-modal__close" type="button" data-close-login aria-label="Cerrar">×</button><h2>¿Quién entra?</h2><p>Selecciona tu perfil e introduce tu PIN.</p><div class="tpv-login-users">${options.map(([username, label, role]) => `<button class="tpv-login-user ${state.loginUsername === username ? "is-active" : ""}" type="button" data-login-user="${username}"><b>${label}</b><small>${role}</small></button>`).join("")}</div><label>Usuario<input name="username" value="${state.loginUsername}" readonly></label><label>PIN<input name="pin" type="password" inputmode="numeric" autocomplete="current-password" pattern="[0-9]{4,10}" minlength="4" maxlength="10" required autofocus></label><div class="tpv-modal__actions"><button class="tpv-action is-secondary" type="button" data-close-login>Cancelar</button><button class="tpv-action" type="submit">Entrar</button></div></form></div>`;
   }
   function render() {
-    const content = state.tab === "ventas" ? renderSales() : state.tab === "articulos" ? renderArticles() : renderTables();
+    const content = state.tab === "ventas" ? renderSales() : state.tab === "articulos" ? renderArticles() : state.tab === "personal" ? renderStaff() : renderTables();
     root.innerHTML = `<div class="tpv-management-app">${nav()}<main class="tpv-management-main">${topbar()}${content}</main>${priceModal()}${tableModal()}${loginModal()}${state.toast ? `<div class="tpv-toast is-success">${escapeHtml(state.toast)}</div>` : ""}</div>`;
   }
   root.addEventListener("click", async (event) => {
     const button = event.target.closest("button");
     if (!button) return;
-    if (button.dataset.tab) { state.tab = button.dataset.tab; render(); return; }
+    if (button.dataset.tab) { state.tab = button.dataset.tab; if (state.tab === "personal") { refreshCloudStaff().then(render).catch((error) => { flash(error.message); render(); }); } render(); return; }
+    if (button.dataset.loginUser) { state.loginUsername = button.dataset.loginUser; render(); return; }
     if (button.dataset.openLogin !== undefined) { state.loginOpen = true; render(); return; }
     if (button.dataset.closeLogin !== undefined) { state.loginOpen = false; render(); return; }
     if (button.dataset.logout !== undefined) { Cloud.logout(); flash("Sesión cerrada. Los cambios vuelven a guardarse solo en este dispositivo."); render(); return; }
@@ -213,15 +226,25 @@
     if (event.target.matches("[data-login-form]")) {
       event.preventDefault();
       const form = new FormData(event.target);
-      Cloud.login(String(form.get("username") || ""), String(form.get("pin") || ""))
+      Cloud.login(state.loginUsername, String(form.get("pin") || ""))
         .then(async () => {
+          if (!["admin", "manager"].includes(session().user.role)) { window.location.href = "tpv.html"; return; }
           await refreshCloudTables();
           await refreshCloudProducts();
           await refreshCloudSales();
+          await refreshCloudStaff();
           state.loginOpen = false;
           flash("Sesión iniciada. Las mesas ya usan la base central.");
           render();
         })
+        .catch((error) => { flash(error.message); render(); });
+      return;
+    }
+    if (event.target.matches("[data-staff-form]")) {
+      event.preventDefault();
+      const values = Object.fromEntries(new FormData(event.target));
+      Cloud.createStaff(values)
+        .then(async () => { await refreshCloudStaff(); flash(`${values.displayName} ya tiene acceso propio.`); render(); })
         .catch((error) => { flash(error.message); render(); });
       return;
     }
@@ -298,7 +321,7 @@
   });
   render();
   if (isCloudConnected()) {
-    Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales()]).then(render).catch(() => {});
+    Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales(), refreshCloudStaff()]).then(render).catch(() => {});
     window.setInterval(() => Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales()]).then(render).catch(() => {}), 15000);
   }
 })();

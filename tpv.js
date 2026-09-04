@@ -4,7 +4,7 @@
   const root = document.getElementById("tpv-root");
   if (!Core || !root) return;
 
-  const state = { page: "sala", selectedTableId: null, category: "all", modal: null, toast: null, data: Core.loadData() };
+  const state = { page: "sala", selectedTableId: null, category: "all", modal: null, loginUsername: "carlos", toast: null, data: Core.loadData() };
   let toastTimer = null;
 
   function escapeHtml(value) {
@@ -227,7 +227,8 @@
   }
   function loginModal() {
     if (state.modal !== "login") return "";
-    return `<div class="tpv-modal-backdrop"><form class="tpv-modal" data-login-form><button class="tpv-modal__close" type="button" data-close-modal="true" aria-label="Cerrar">×</button><h2>Acceso al TPV</h2><p>Usa tu usuario y PIN para ver las mesas configuradas en la base central.</p><label>Usuario<input name="username" autocomplete="username" minlength="3" required></label><label>PIN<input name="pin" inputmode="numeric" autocomplete="current-password" pattern="[0-9]{4,10}" minlength="4" maxlength="10" required></label><div class="tpv-modal__actions"><button class="tpv-action is-secondary" type="button" data-close-modal="true">Cancelar</button><button class="tpv-action" type="submit">Entrar</button></div></form></div>`;
+    const options = [["matias", "Matías", "Camarero"], ["lucia", "Lucía", "Camarera"], ["carlos", "Administrador", "Carlos"]];
+    return `<div class="tpv-modal-backdrop"><form class="tpv-modal" data-login-form><button class="tpv-modal__close" type="button" data-close-modal="true" aria-label="Cerrar">×</button><h2>¿Quién entra?</h2><p>Selecciona tu perfil e introduce tu PIN.</p><div class="tpv-login-users">${options.map(([username, label, role]) => `<button class="tpv-login-user ${state.loginUsername === username ? "is-active" : ""}" type="button" data-login-user="${username}"><b>${label}</b><small>${role}</small></button>`).join("")}</div><label>Usuario<input name="username" value="${state.loginUsername}" readonly></label><label>PIN<input name="pin" type="password" inputmode="numeric" autocomplete="current-password" pattern="[0-9]{4,10}" minlength="4" maxlength="10" required autofocus></label><div class="tpv-modal__actions"><button class="tpv-action is-secondary" type="button" data-close-modal="true">Cancelar</button><button class="tpv-action" type="submit">Entrar</button></div></form></div>`;
   }
   function render() {
     const view = state.page === "comanda" ? renderOrder() : state.page === "cocina" ? renderKitchen() : state.page === "caja" ? renderCash() : renderFloor();
@@ -236,6 +237,7 @@
   root.addEventListener("click", (event) => {
     const button = event.target.closest("button, [data-nav]");
     if (!button) return;
+    if (button.dataset.loginUser) { state.loginUsername = button.dataset.loginUser; render(); return; }
     if (button.dataset.openLogin !== undefined) { state.modal = "login"; render(); return; }
     if (button.dataset.logout !== undefined) { Cloud.logout(); flash("Sesión cerrada."); render(); return; }
     if (button.dataset.nav) { state.page = button.dataset.nav; state.selectedTableId = null; state.modal = null; render(); return; }
@@ -254,7 +256,7 @@
     if (!event.target.matches("[data-login-form]")) return;
     event.preventDefault();
     const form = new FormData(event.target);
-    Cloud.login(String(form.get("username") || ""), String(form.get("pin") || ""))
+    Cloud.login(state.loginUsername, String(form.get("pin") || ""))
       .then(async () => {
         await refreshCloudState();
         state.modal = null;

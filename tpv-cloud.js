@@ -148,7 +148,18 @@
     return result.order;
   }
 
+  async function loadStaff() {
+    const result = await request("tpv-staff");
+    return result.users || [];
+  }
+
+  async function createStaff(input) {
+    const result = await request("tpv-staff", { method: "POST", body: JSON.stringify(input) });
+    return result.user;
+  }
+
   window.BC_TPV_CLOUD = {
+    createStaff,
     createTable,
     deleteTable,
     getSession,
@@ -158,6 +169,7 @@
     loadOrders,
     loadProducts,
     loadSales,
+    loadStaff,
     logout,
     request,
     payOrder,
