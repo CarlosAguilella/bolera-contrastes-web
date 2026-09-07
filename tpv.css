@@ -346,6 +346,7 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .tpv-articles-row strong { font-family: var(--tpv-display); font-size: 18px; font-weight: 400; }
 .tpv-articles-row em { color: var(--tpv-amber); font-style: normal; font-weight: 800; }
 .tpv-gestion-header-actions { display: flex; align-items: center; gap: 10px; }
+.tpv-gestion-header-actions .tpv-action { text-decoration: none; }
 .tpv-checkbox { display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 700; }
 .tpv-checkbox input { width: auto; }
 .tpv-edit-button { padding: 7px 8px; border: 1px solid var(--tpv-line); border-radius: 7px; color: var(--tpv-ink); background: #fff; font-size: 11px; font-weight: 800; }

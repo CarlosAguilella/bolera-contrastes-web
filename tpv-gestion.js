@@ -4,7 +4,7 @@
   const root = document.getElementById("tpv-gestion-root");
   if (!Core || !root) return;
 
-  const state = { tab: "ventas", search: "", staff: [], editingId: null, creatingProduct: false, editingTableId: null, deletingTableId: null, loginOpen: false, loginUsername: "carlos", data: Core.loadData(), toast: null };
+  const state = { tab: "ventas", search: "", staff: [], editingId: null, creatingProduct: window.location.hash === "#nuevo-articulo", editingTableId: null, deletingTableId: null, loginOpen: false, loginUsername: "carlos", data: Core.loadData(), toast: null };
   let toastTimer = null;
   let draggedTable = null;
 
@@ -96,7 +96,7 @@
     const query = state.search.trim().toLocaleLowerCase("es");
     const products = Core.getProducts(state.data, true).filter((item) => `${item.name} ${item.category}`.toLocaleLowerCase("es").includes(query));
     const canManage = ["admin", "manager"].includes(session()?.user?.role);
-    return `<section class="tpv-gestion-content"><section class="tpv-gestion-card"><header><div><h2>Catálogo del restaurante</h2><span>${products.length} artículos · sincronizados en todos los TPV</span></div><div class="tpv-gestion-header-actions"><label class="tpv-search"><span>⌕</span><input type="search" value="${escapeHtml(state.search)}" placeholder="Buscar artículo" data-search-products></label>${canManage ? `<button class="tpv-action" type="button" data-create-product>Nuevo artículo</button>` : ""}</div></header><div class="tpv-articles-table"><div class="tpv-articles-row is-heading"><span>Artículo</span><span>Familia</span><span>PVP</span><span>Coste compra</span><span>Margen</span><span></span></div>${products.map((item) => { const pvp = item.priceCents; const cost = state.data.costs?.[item.id]; const margin = Number.isFinite(Number(cost)) ? pvp - Number(cost) : null; return `<div class="tpv-articles-row ${item.active === false ? "is-inactive" : ""}"><div><b>${escapeHtml(item.name)}${item.active === false ? " · Desactivado" : ""}</b><small>${escapeHtml(item.description)}</small></div><span>${escapeHtml(item.category)}</span><strong>${Core.formatEuros(pvp)}</strong><span>${margin === null ? `<em>Pendiente</em>` : Core.formatEuros(cost)}</span><span>${margin === null ? "—" : Core.formatEuros(margin)}</span>${canManage ? `<button class="tpv-edit-button" type="button" data-edit-product="${item.id}">Editar</button>` : ""}</div>`; }).join("") || `<p class="tpv-gestion-empty">No se han encontrado artículos.</p>`}</div></section><aside class="tpv-management-note"><h2>Carta centralizada</h2><p>Añade, edita o desactiva artículos desde aquí sin abrir VS Code. Los cambios se aplican al TPV de camareros al sincronizar.</p><p>Desactivar un artículo lo oculta de la carta sin borrar las ventas ni las comandas anteriores.</p></aside></section>`;
+    return `<section class="tpv-gestion-content"><section class="tpv-gestion-card"><header><div><h2>Catálogo del restaurante</h2><span>${products.length} artículos · sincronizados en todos los TPV</span></div><div class="tpv-gestion-header-actions"><label class="tpv-search"><span>⌕</span><input type="search" value="${escapeHtml(state.search)}" placeholder="Buscar artículo" data-search-products></label>${canManage ? `<a class="tpv-action" href="#nuevo-articulo" data-create-product>Nuevo artículo</a>` : ""}</div></header><div class="tpv-articles-table"><div class="tpv-articles-row is-heading"><span>Artículo</span><span>Familia</span><span>PVP</span><span>Coste compra</span><span>Margen</span><span></span></div>${products.map((item) => { const pvp = item.priceCents; const cost = state.data.costs?.[item.id]; const margin = Number.isFinite(Number(cost)) ? pvp - Number(cost) : null; return `<div class="tpv-articles-row ${item.active === false ? "is-inactive" : ""}"><div><b>${escapeHtml(item.name)}${item.active === false ? " · Desactivado" : ""}</b><small>${escapeHtml(item.description)}</small></div><span>${escapeHtml(item.category)}</span><strong>${Core.formatEuros(pvp)}</strong><span>${margin === null ? `<em>Pendiente</em>` : Core.formatEuros(cost)}</span><span>${margin === null ? "—" : Core.formatEuros(margin)}</span>${canManage ? `<button class="tpv-edit-button" type="button" data-edit-product="${item.id}">Editar</button>` : ""}</div>`; }).join("") || `<p class="tpv-gestion-empty">No se han encontrado artículos.</p>`}</div></section><aside class="tpv-management-note"><h2>Carta centralizada</h2><p>Añade, edita o desactiva artículos desde aquí sin abrir VS Code. Los cambios se aplican al TPV de camareros al sincronizar.</p><p>Desactivar un artículo lo oculta de la carta sin borrar las ventas ni las comandas anteriores.</p></aside></section>`;
   }
   function renderLayoutMap(tables) {
     return `<section class="tpv-gestion-card tpv-layout-editor"><header><div><h2>Mapa de mesas</h2><span>Arrastra una mesa para cambiar su posición en el plano</span></div><span class="tpv-layout-editor__hint">Cambios guardados al soltar</span></header><div class="tpv-layout-map-scroll"><div class="tpv-layout-map" data-layout-map><div class="tpv-layout-map__bar">Barra</div><div class="tpv-layout-map__plants" aria-hidden="true">●<br>●<br>●<br>●</div>${tables.map((table) => `<button class="tpv-layout-table ${table.area === "wall" ? "is-wall" : ""}" type="button" style="--x:${table.x};--y:${table.y}" data-layout-table="${table.id}" aria-label="Mover mesa ${table.id}"><span></span><b>${table.id}</b></button>`).join("")}</div></div></section>`;
@@ -140,7 +140,14 @@
     const content = state.tab === "ventas" ? renderSales() : state.tab === "articulos" ? renderArticles() : state.tab === "personal" ? renderStaff() : renderTables();
     root.innerHTML = `<div class="tpv-management-app">${nav()}<main class="tpv-management-main">${topbar()}${content}</main>${priceModal()}${tableModal()}${loginModal()}${state.toast ? `<div class="tpv-toast is-success">${escapeHtml(state.toast)}</div>` : ""}</div>`;
   }
+  function closeProductModal() {
+    state.editingId = null;
+    state.creatingProduct = false;
+    if (window.location.hash === "#nuevo-articulo") window.history.replaceState(null, "", window.location.pathname);
+  }
   root.addEventListener("click", async (event) => {
+    const action = event.target.closest("[data-create-product]");
+    if (action) { event.preventDefault(); state.creatingProduct = true; render(); return; }
     const button = event.target.closest("button");
     if (!button) return;
     if (button.dataset.tab) { state.tab = button.dataset.tab; if (state.tab === "personal") { refreshCloudStaff().then(render).catch((error) => { flash(error.message); render(); }); } render(); return; }
@@ -148,9 +155,8 @@
     if (button.dataset.openLogin !== undefined) { state.loginOpen = true; render(); return; }
     if (button.dataset.closeLogin !== undefined) { state.loginOpen = false; render(); return; }
     if (button.dataset.logout !== undefined) { Cloud.logout(); flash("Sesión cerrada. Los cambios vuelven a guardarse solo en este dispositivo."); render(); return; }
-    if (button.dataset.createProduct !== undefined) { state.creatingProduct = true; render(); return; }
     if (button.dataset.editProduct) { state.creatingProduct = false; state.editingId = button.dataset.editProduct; render(); return; }
-    if (button.dataset.closeEdit !== undefined) { state.editingId = null; state.creatingProduct = false; render(); return; }
+    if (button.dataset.closeEdit !== undefined) { closeProductModal(); render(); return; }
     if (button.dataset.archiveProduct) {
       const productId = button.dataset.archiveProduct;
       if (!isCloudConnected()) { flash("Inicia sesión para desactivar artículos."); render(); return; }
@@ -331,6 +337,12 @@
       .catch((error) => { flash(error.message); render(); });
   });
   render();
+  window.addEventListener("hashchange", () => {
+    if (window.location.hash !== "#nuevo-articulo") return;
+    state.editingId = null;
+    state.creatingProduct = true;
+    render();
+  });
   if (isCloudConnected()) {
     Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales(), refreshCloudStaff()]).then(render).catch(() => {});
     window.setInterval(() => Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales()]).then(render).catch(() => {}), 15000);
