@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Nuevo artículo — Bolera Contrastes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="tpv.css">
+</head>
+<body>
+  <main class="tpv-article-form-page">
+    <form class="tpv-article-form" id="new-product-form">
+      <a class="tpv-action is-secondary" href="tpv-gestion.html">← Volver a artículos</a>
+      <span>Administración</span>
+      <h1>Nuevo artículo</h1>
+      <p>Quedará disponible en todos los TPV conectados.</p>
+      <label>Nombre<input name="name" maxlength="160" required autofocus></label>
+      <label>Familia<input name="category" maxlength="100" placeholder="Ej. Para picar" required></label>
+      <label>Formato o descripción<input name="description" maxlength="500" placeholder="Ej. Ración entera"></label>
+      <label>Precio de venta (€)<input name="price" type="number" min="0" step="0.01" required></label>
+      <label>Coste de compra (€)<input name="cost" type="number" min="0" step="0.01" placeholder="Opcional"></label>
+      <label class="tpv-checkbox"><input name="sendsToKitchen" type="checkbox"><span>Enviar este artículo a cocina</span></label>
+      <p class="tpv-article-form__message" id="new-product-message"></p>
+      <button class="tpv-action" type="submit">Crear artículo</button>
+    </form>
+  </main>
+  <script src="tpv-cloud.js"></script>
+  <script src="tpv-articulo-nuevo.js"></script>
+</body>
+</html>
