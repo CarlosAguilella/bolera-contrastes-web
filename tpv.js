@@ -43,7 +43,7 @@
   }
   async function refreshCloudState() {
     if (!session()) return;
-    let products = await Cloud.loadProducts();
+    let products = await Cloud.loadProducts(true);
     if (!products.length && ["admin", "manager"].includes(session().user.role)) products = await Cloud.seedProducts();
     const [tables, orders, kitchenOrders] = await Promise.all([Cloud.loadTables(), Cloud.loadOrders(), Cloud.loadKitchenOrders()]);
     Cloud.saveRemoteTables(state.data, tables);
@@ -227,8 +227,9 @@
   function renderOrder() {
     const ticket = state.data.tables[state.selectedTableId];
     if (!ticket) { state.page = "sala"; return renderFloor(); }
-    const categories = [{ id: "all", label: "Todo" }, ...Array.from(new Map(Core.products.map((item) => [item.categoryId, { id: item.categoryId, label: item.category }])).values())];
-    const visible = Core.products.filter((item) => state.category === "all" || item.categoryId === state.category);
+    const catalog = Core.getProducts(state.data);
+    const categories = [{ id: "all", label: "Todo" }, ...Array.from(new Map(catalog.map((item) => [item.categoryId, { id: item.categoryId, label: item.category }])).values())];
+    const visible = catalog.filter((item) => state.category === "all" || item.categoryId === state.category);
     return `${topbar(`Mesa ${state.selectedTableId}`, "Añade productos y envía la comanda cuando esté lista")}<div class="tpv-order"><section class="tpv-panel"><div class="tpv-panel__head"><div><h2>Carta completa</h2><span>${visible.length} productos disponibles</span></div><button class="tpv-action is-secondary" type="button" data-nav="sala">Volver a sala</button></div><div class="tpv-category-filter">${categories.map((category) => `<button type="button" class="${state.category === category.id ? "is-active" : ""}" data-category="${category.id}">${escapeHtml(category.label)}</button>`).join("")}</div><div class="tpv-catalog">${visible.map((item) => `<article class="tpv-product">${item.image ? `<img src="${escapeHtml(item.image)}" alt="" loading="lazy">` : ""}<div><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.description)}</span></div><div class="tpv-product__bottom"><span class="tpv-product__price">${Core.formatEuros(item.priceCents)}</span><button type="button" class="tpv-add" data-add-product="${item.id}">Añadir</button></div></article>`).join("")}</div></section>${ticketView(ticket)}</div>`;
   }
   function kitchenCard(order) {

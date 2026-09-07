@@ -31,7 +31,7 @@
   }
   async function refresh() {
     if (!session()) return;
-    const products = await Cloud.loadProducts();
+    const products = await Cloud.loadProducts(true);
     Cloud.saveRemoteProducts(state.data, products);
     const byDatabaseId = productIdsByDatabaseId();
     const orders = await Cloud.loadKitchenOrders();

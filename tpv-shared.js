@@ -92,14 +92,46 @@
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (error) {}
   }
 
+  function categoryId(value) {
+    return String(value || "otros").toLocaleLowerCase("es").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "otros";
+  }
+
+  function remoteProduct(product) {
+    const category = product?.product_categories?.name || product?.category || "Otros";
+    return {
+      id: product.external_id,
+      categoryId: categoryId(category),
+      category,
+      name: product.name,
+      description: product.description || product.variant || category,
+      priceCents: Number(product.price_cents || 0),
+      image: "",
+      sendsToKitchen: Boolean(product.sends_to_kitchen),
+      active: product.active !== false,
+    };
+  }
+
+  function getProducts(data, includeInactive) {
+    const remote = Array.isArray(data?.remoteProducts) ? data.remoteProducts.map(remoteProduct).filter((item) => item.id) : [];
+    const byId = new Map(remote.map((item) => [item.id, item]));
+    const merged = products.map((item) => {
+      const saved = byId.get(item.id);
+      return saved ? { ...item, ...saved } : { ...item, active: true };
+    });
+    const staticIds = new Set(products.map((item) => item.id));
+    remote.forEach((item) => { if (!staticIds.has(item.id)) merged.push(item); });
+    return includeInactive ? merged : merged.filter((item) => item.active !== false);
+  }
+
   function getProduct(id, data) {
-    const product = products.find((item) => item.id === id);
+    const product = getProducts(data, true).find((item) => item.id === id);
     if (!product) return null;
     const override = data?.prices?.[id];
-    return override ? { ...product, priceCents: Number(override) } : product;
+    return override !== undefined ? { ...product, priceCents: Number(override) } : product;
   }
 
   function isKitchenProduct(product) {
+    if (typeof product?.sendsToKitchen === "boolean") return product.sendsToKitchen;
     const barCategories = new Set([
       "refrescos y cervezas", "café e infusiones", "bebida alcohólica", "vino blanco",
       "vino tinto rioja", "vino tinto ribera del duero", "cavas y champagne", "bollería",
@@ -112,5 +144,5 @@
     return `${(Number(cents || 0) / 100).toFixed(2).replace(".", ",")} €`;
   }
 
-  window.BC_TPV = { STORAGE_KEY, products, initialData, loadData, saveData, getProduct, getTables, suggestedTablePosition, isKitchenProduct, formatEuros };
+  window.BC_TPV = { STORAGE_KEY, products, initialData, loadData, saveData, getProduct, getProducts, getTables, suggestedTablePosition, isKitchenProduct, formatEuros };
 })();

@@ -4,7 +4,7 @@
   const root = document.getElementById("tpv-gestion-root");
   if (!Core || !root) return;
 
-  const state = { tab: "ventas", search: "", staff: [], editingId: null, editingTableId: null, deletingTableId: null, loginOpen: false, loginUsername: "carlos", data: Core.loadData(), toast: null };
+  const state = { tab: "ventas", search: "", staff: [], editingId: null, creatingProduct: false, editingTableId: null, deletingTableId: null, loginOpen: false, loginUsername: "carlos", data: Core.loadData(), toast: null };
   let toastTimer = null;
   let draggedTable = null;
 
@@ -21,9 +21,9 @@
     Cloud.saveRemoteTables(state.data, tables);
     save();
   }
-  async function refreshCloudProducts() {
+  async function refreshCloudProducts(includeInactive = true) {
     if (!isCloudConnected()) return;
-    let products = await Cloud.loadProducts();
+    let products = await Cloud.loadProducts(includeInactive);
     if (!products.length && ["admin", "manager"].includes(session().user.role)) products = await Cloud.seedProducts();
     Cloud.saveRemoteProducts(state.data, products);
     save();
@@ -94,8 +94,9 @@
   }
   function renderArticles() {
     const query = state.search.trim().toLocaleLowerCase("es");
-    const products = Core.products.filter((item) => `${item.name} ${item.category}`.toLocaleLowerCase("es").includes(query));
-    return `<section class="tpv-gestion-content"><section class="tpv-gestion-card"><header><div><h2>Catálogo del restaurante</h2><span>${products.length} artículos · PVP usado por el TPV</span></div><label class="tpv-search"><span>⌕</span><input type="search" value="${escapeHtml(state.search)}" placeholder="Buscar artículo" data-search-products></label></header><div class="tpv-articles-table"><div class="tpv-articles-row is-heading"><span>Artículo</span><span>Familia</span><span>PVP</span><span>Coste compra</span><span>Margen</span><span></span></div>${products.map((item) => { const pvp = product(item.id).priceCents; const cost = state.data.costs?.[item.id]; const margin = Number.isFinite(Number(cost)) ? pvp - Number(cost) : null; return `<div class="tpv-articles-row"><div><b>${escapeHtml(item.name)}</b><small>${escapeHtml(item.description)}</small></div><span>${escapeHtml(item.category)}</span><strong>${Core.formatEuros(pvp)}</strong><span>${margin === null ? `<em>Pendiente</em>` : Core.formatEuros(cost)}</span><span>${margin === null ? "—" : Core.formatEuros(margin)}</span><button class="tpv-edit-button" type="button" data-edit-product="${item.id}">Editar</button></div>`; }).join("") || `<p class="tpv-gestion-empty">No se han encontrado artículos.</p>`}</div></section><aside class="tpv-management-note"><h2>Sobre los costes</h2><p>Los costes de compra se muestran como pendientes hasta que se registren. El margen es orientativo y no incluye impuestos ni otros costes.</p><p>Los precios guardados aquí se aplican en el TPV de camarero de este mismo navegador.</p></aside></section>`;
+    const products = Core.getProducts(state.data, true).filter((item) => `${item.name} ${item.category}`.toLocaleLowerCase("es").includes(query));
+    const canManage = ["admin", "manager"].includes(session()?.user?.role);
+    return `<section class="tpv-gestion-content"><section class="tpv-gestion-card"><header><div><h2>Catálogo del restaurante</h2><span>${products.length} artículos · sincronizados en todos los TPV</span></div><div class="tpv-gestion-header-actions"><label class="tpv-search"><span>⌕</span><input type="search" value="${escapeHtml(state.search)}" placeholder="Buscar artículo" data-search-products></label>${canManage ? `<button class="tpv-action" type="button" data-create-product>Nuevo artículo</button>` : ""}</div></header><div class="tpv-articles-table"><div class="tpv-articles-row is-heading"><span>Artículo</span><span>Familia</span><span>PVP</span><span>Coste compra</span><span>Margen</span><span></span></div>${products.map((item) => { const pvp = item.priceCents; const cost = state.data.costs?.[item.id]; const margin = Number.isFinite(Number(cost)) ? pvp - Number(cost) : null; return `<div class="tpv-articles-row ${item.active === false ? "is-inactive" : ""}"><div><b>${escapeHtml(item.name)}${item.active === false ? " · Desactivado" : ""}</b><small>${escapeHtml(item.description)}</small></div><span>${escapeHtml(item.category)}</span><strong>${Core.formatEuros(pvp)}</strong><span>${margin === null ? `<em>Pendiente</em>` : Core.formatEuros(cost)}</span><span>${margin === null ? "—" : Core.formatEuros(margin)}</span>${canManage ? `<button class="tpv-edit-button" type="button" data-edit-product="${item.id}">Editar</button>` : ""}</div>`; }).join("") || `<p class="tpv-gestion-empty">No se han encontrado artículos.</p>`}</div></section><aside class="tpv-management-note"><h2>Carta centralizada</h2><p>Añade, edita o desactiva artículos desde aquí sin abrir VS Code. Los cambios se aplican al TPV de camareros al sincronizar.</p><p>Desactivar un artículo lo oculta de la carta sin borrar las ventas ni las comandas anteriores.</p></aside></section>`;
   }
   function renderLayoutMap(tables) {
     return `<section class="tpv-gestion-card tpv-layout-editor"><header><div><h2>Mapa de mesas</h2><span>Arrastra una mesa para cambiar su posición en el plano</span></div><span class="tpv-layout-editor__hint">Cambios guardados al soltar</span></header><div class="tpv-layout-map-scroll"><div class="tpv-layout-map" data-layout-map><div class="tpv-layout-map__bar">Barra</div><div class="tpv-layout-map__plants" aria-hidden="true">●<br>●<br>●<br>●</div>${tables.map((table) => `<button class="tpv-layout-table ${table.area === "wall" ? "is-wall" : ""}" type="button" style="--x:${table.x};--y:${table.y}" data-layout-table="${table.id}" aria-label="Mover mesa ${table.id}"><span></span><b>${table.id}</b></button>`).join("")}</div></div></section>`;
@@ -112,10 +113,11 @@
     return `<section class="tpv-gestion-content"><section class="tpv-gestion-card"><header><div><h2>Accesos del equipo</h2><span>Los camareros entran solo seleccionando su nombre</span></div></header>${canManage ? `<form class="tpv-staff-form" data-staff-form><label>Nombre<input name="displayName" placeholder="Matías o Lucía" required></label><label>Usuario<input name="username" pattern="[a-z0-9._-]{3,40}" placeholder="matias" required></label><label>Rol<select name="role"><option value="waiter">Camarero/a</option><option value="kitchen">Cocina</option><option value="manager">Gestor</option><option value="admin">Administrador</option></select></label><label>PIN <small>solo gestión/cocina</small><input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,10}" minlength="4" maxlength="10"></label><button class="tpv-action" type="submit">Crear acceso</button></form>` : `<p class="tpv-gestion-empty">Tu rol permite ver el personal, pero no crear ni cambiar PIN.</p>`}<div class="tpv-staff-list">${state.staff.length ? state.staff.map((staff) => `<article><div><b>${escapeHtml(staff.displayName)}</b><small>@${escapeHtml(staff.username)} · ${roleLabel(staff.role)}</small></div><span class="tpv-table-state ${staff.active ? "" : "is-open"}">${staff.active ? "Activo" : "Desactivado"}</span></article>`).join("") : `<p class="tpv-gestion-empty">Cargando personal…</p>`}</div></section><aside class="tpv-management-note"><h2>Los accesos actuales</h2><p>Crea los perfiles de <strong>Matías</strong> y <strong>Lucía</strong> con rol Camarero/a: no necesitan PIN.</p><p>El perfil Administrador conserva acceso completo y requiere PIN.</p></aside></section>`;
   }
   function priceModal() {
-    if (!state.editingId) return "";
-    const item = product(state.editingId);
-    const cost = state.data.costs?.[state.editingId];
-    return `<div class="tpv-modal-backdrop"><form class="tpv-modal" data-price-form><button class="tpv-modal__close" type="button" data-close-edit aria-label="Cerrar">×</button><h2>${escapeHtml(item.name)}</h2><p>Actualiza el precio de venta y el coste de compra.</p><label>Precio de venta (€)<input name="price" type="number" min="0" step="0.01" value="${(item.priceCents / 100).toFixed(2)}" required></label><label>Coste de compra (€)<input name="cost" type="number" min="0" step="0.01" value="${cost === undefined ? "" : (Number(cost) / 100).toFixed(2)}" placeholder="Pendiente"></label><div class="tpv-modal__actions"><button class="tpv-action is-secondary" type="button" data-close-edit>Cancelar</button><button class="tpv-action" type="submit">Guardar cambios</button></div></form></div>`;
+    if (!state.editingId && !state.creatingProduct) return "";
+    const item = state.creatingProduct ? null : product(state.editingId);
+    const cost = item ? state.data.costs?.[state.editingId] : undefined;
+    const title = item ? item.name : "Nuevo artículo";
+    return `<div class="tpv-modal-backdrop"><form class="tpv-modal" data-product-form><button class="tpv-modal__close" type="button" data-close-edit aria-label="Cerrar">×</button><h2>${escapeHtml(title)}</h2><p>${item ? "Edita la información que aparecerá en el TPV." : "El artículo quedará disponible en todos los TPV conectados."}</p><label>Nombre<input name="name" maxlength="160" value="${escapeHtml(item?.name || "")}" required autofocus></label><label>Familia<input name="category" maxlength="100" value="${escapeHtml(item?.category || "")}" placeholder="Ej. Para picar" required></label><label>Formato o descripción<input name="description" maxlength="500" value="${escapeHtml(item?.description || "")}" placeholder="Ej. Ración entera"></label><label>Precio de venta (€)<input name="price" type="number" min="0" step="0.01" value="${item ? (item.priceCents / 100).toFixed(2) : ""}" required></label><label>Coste de compra (€)<input name="cost" type="number" min="0" step="0.01" value="${cost === undefined ? "" : (Number(cost) / 100).toFixed(2)}" placeholder="Pendiente"></label><label class="tpv-checkbox"><input name="sendsToKitchen" type="checkbox" ${item?.sendsToKitchen ? "checked" : ""}><span>Enviar este artículo a cocina</span></label><div class="tpv-modal__actions">${item?.active !== false ? `<button class="tpv-action is-danger" type="button" data-archive-product="${item.id}">Desactivar</button>` : ""}<button class="tpv-action is-secondary" type="button" data-close-edit>Cancelar</button><button class="tpv-action" type="submit">${item ? "Guardar cambios" : "Crear artículo"}</button></div></form></div>`;
   }
   function tableModal() {
     if (state.editingTableId) {
@@ -146,8 +148,17 @@
     if (button.dataset.openLogin !== undefined) { state.loginOpen = true; render(); return; }
     if (button.dataset.closeLogin !== undefined) { state.loginOpen = false; render(); return; }
     if (button.dataset.logout !== undefined) { Cloud.logout(); flash("Sesión cerrada. Los cambios vuelven a guardarse solo en este dispositivo."); render(); return; }
-    if (button.dataset.editProduct) { state.editingId = button.dataset.editProduct; render(); return; }
-    if (button.dataset.closeEdit !== undefined) { state.editingId = null; render(); }
+    if (button.dataset.createProduct !== undefined) { state.creatingProduct = true; render(); return; }
+    if (button.dataset.editProduct) { state.creatingProduct = false; state.editingId = button.dataset.editProduct; render(); return; }
+    if (button.dataset.closeEdit !== undefined) { state.editingId = null; state.creatingProduct = false; render(); return; }
+    if (button.dataset.archiveProduct) {
+      const productId = button.dataset.archiveProduct;
+      if (!isCloudConnected()) { flash("Inicia sesión para desactivar artículos."); render(); return; }
+      Cloud.archiveProduct(state.data.cloudProductIds?.[productId])
+        .then(async () => { await refreshCloudProducts(); state.editingId = null; flash("Artículo desactivado. Las ventas anteriores se conservan."); render(); })
+        .catch((error) => { flash(error.message); render(); });
+      return;
+    }
     if (button.dataset.editTable) { state.editingTableId = button.dataset.editTable; render(); return; }
     if (button.dataset.deleteTable) { state.deletingTableId = button.dataset.deleteTable; render(); return; }
     if (button.dataset.closeTableModal !== undefined) { state.editingTableId = null; state.deletingTableId = null; render(); return; }
@@ -296,29 +307,28 @@
       }
       return;
     }
-    if (!event.target.matches("[data-price-form]")) return;
+    if (!event.target.matches("[data-product-form]")) return;
     event.preventDefault();
     const form = new FormData(event.target);
     const price = Math.round(Number(form.get("price")) * 100);
     const rawCost = String(form.get("cost") || "").trim();
-    if (!Number.isFinite(price) || price < 0) { flash("Introduce un precio de venta válido."); render(); return; }
-    state.data.prices = state.data.prices || {};
-    state.data.costs = state.data.costs || {};
-    state.data.prices[state.editingId] = price;
-    if (rawCost) state.data.costs[state.editingId] = Math.round(Number(rawCost) * 100);
-    else delete state.data.costs[state.editingId];
+    const name = String(form.get("name") || "").trim();
+    const category = String(form.get("category") || "").trim();
+    if (!name || !category || !Number.isFinite(price) || price < 0 || (rawCost && (!Number.isFinite(Number(rawCost)) || Number(rawCost) < 0))) { flash("Completa nombre, familia y un precio válido."); render(); return; }
+    if (!isCloudConnected()) { flash("Inicia sesión para guardar cambios en la carta central."); render(); return; }
+    const input = { name, category, description: String(form.get("description") || "").trim(), priceCents: price, costCents: rawCost ? Math.round(Number(rawCost) * 100) : null, sendsToKitchen: form.get("sendsToKitchen") === "on" };
+    const creatingProduct = state.creatingProduct;
     const productId = state.editingId;
-    state.editingId = null;
-    save();
-    if (isCloudConnected()) {
-      const cloudProductId = state.data.cloudProductIds?.[productId];
-      Cloud.updateProduct(cloudProductId, price, rawCost ? Math.round(Number(rawCost) * 100) : null)
-        .then(async () => { await refreshCloudProducts(); flash("Artículo actualizado en la base central."); render(); })
-        .catch((error) => { flash(error.message); render(); });
-    } else {
-      flash("Artículo actualizado en este dispositivo.");
-      render();
-    }
+    const request = creatingProduct ? Cloud.createProduct(input) : Cloud.updateProduct(state.data.cloudProductIds?.[productId], input);
+    request
+      .then(async () => {
+        await refreshCloudProducts();
+        state.editingId = null;
+        state.creatingProduct = false;
+        flash(creatingProduct ? "Artículo añadido a la carta central." : "Artículo actualizado en la base central.");
+        render();
+      })
+      .catch((error) => { flash(error.message); render(); });
   });
   render();
   if (isCloudConnected()) {

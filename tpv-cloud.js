@@ -79,8 +79,8 @@
     return request("tpv-tables", { method: "DELETE", body: JSON.stringify({ id }) });
   }
 
-  async function loadProducts() {
-    const result = await request("tpv-products");
+  async function loadProducts(includeInactive = false) {
+    const result = await request(`tpv-products${includeInactive ? "?includeInactive=true" : ""}`);
     return result.products || [];
   }
 
@@ -89,9 +89,18 @@
     return result.products || [];
   }
 
-  async function updateProduct(id, priceCents, costCents) {
-    const result = await request("tpv-products", { method: "PATCH", body: JSON.stringify({ id, priceCents, costCents }) });
+  async function createProduct(input) {
+    const result = await request("tpv-products", { method: "POST", body: JSON.stringify({ action: "create", ...input }) });
     return result.product;
+  }
+
+  async function updateProduct(id, input) {
+    const result = await request("tpv-products", { method: "PATCH", body: JSON.stringify({ id, ...input }) });
+    return result.product;
+  }
+
+  async function archiveProduct(id) {
+    return request("tpv-products", { method: "DELETE", body: JSON.stringify({ id }) });
   }
 
   function saveRemoteProducts(data, products) {
@@ -99,6 +108,7 @@
     data.prices = data.prices || {};
     data.costs = data.costs || {};
     data.cloudProductIds = {};
+    data.remoteProducts = products.map((product) => ({ ...product }));
     products.forEach((product) => {
       data.cloudProductIds[product.external_id] = product.id;
       data.prices[product.external_id] = Number(product.price_cents);
@@ -159,6 +169,8 @@
   }
 
   window.BC_TPV_CLOUD = {
+    archiveProduct,
+    createProduct,
     createStaff,
     createTable,
     deleteTable,
