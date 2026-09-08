@@ -94,9 +94,10 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .tpv-catalog { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 18px; }
 .tpv-product { display: grid; min-height: 126px; align-content: space-between; gap: 12px; padding: 15px; border: 1px solid var(--tpv-line); border-radius: 14px; background: var(--tpv-surface); text-align: left; }
 .tpv-product:hover { border-color: var(--tpv-ink); }
-.tpv-product strong, .tpv-product span { display: block; }
+.tpv-product strong, .tpv-product span, .tpv-product small { display: block; }
 .tpv-product strong { font-size: 15px; line-height: 1.2; }
-.tpv-product span { color: var(--tpv-muted); font-size: 12px; }
+.tpv-product__family { margin-top: 5px; color: var(--tpv-green) !important; font-size: 11px !important; font-weight: 800; }
+.tpv-product small { margin-top: 3px; color: var(--tpv-muted); font-size: 11px; }
 .tpv-product__bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .tpv-product__price { font-family: var(--tpv-display); color: var(--tpv-ink) !important; font-size: 21px !important; }
 .tpv-add { padding: 7px 9px; border: 1px solid var(--tpv-line); border-radius: 8px; color: var(--tpv-ink); background: var(--tpv-surface); font-size: 12px; font-weight: 800; }
@@ -526,7 +527,16 @@ button:disabled { cursor: not-allowed; opacity: .48; }
   .tpv-panel__head .tpv-action { width: 100%; }
   .tpv-category-filter { gap: 7px; padding-inline: 12px; }
   .tpv-category-filter button { min-height: 38px; white-space: nowrap; }
-  .tpv-product__price { font-size: 19px !important; }
+  .tpv-catalog { grid-template-columns: 1fr; padding: 10px; }
+  .tpv-product { grid-template-columns: minmax(0, 1fr) auto; align-items: center; min-height: 0; gap: 12px; padding: 14px; }
+  .tpv-product img { grid-column: 1 / -1; width: calc(100% + 28px); height: 130px; margin: -14px -14px 0; }
+  .tpv-product__copy { min-width: 0; }
+  .tpv-product strong { font-size: 16px; }
+  .tpv-product__family { margin-top: 4px; }
+  .tpv-product small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tpv-product__bottom { display: grid; justify-items: end; gap: 8px; }
+  .tpv-product__price { font-size: 23px !important; line-height: 1; white-space: nowrap; }
+  .tpv-add { min-width: 82px; min-height: 42px; padding: 9px 12px; border-color: #111; color: #fff; background: #111; }
   .tpv-ticket__items li { padding: 12px 14px; }
   .tpv-ticket__head, .tpv-ticket__total, .tpv-ticket__actions { padding-inline: 14px; }
   .tpv-ticket__total strong { font-size: 31px; }
