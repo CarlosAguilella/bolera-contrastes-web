@@ -103,6 +103,26 @@
     return request("tpv-products", { method: "DELETE", body: JSON.stringify({ id }) });
   }
 
+  async function loadCashSession(history = false) {
+    const result = await request(`tpv-cash${history ? "?scope=history" : ""}`);
+    return history ? result.sessions || [] : result.session || null;
+  }
+
+  async function openCashSession(openingFloatCents, notes) {
+    const result = await request("tpv-cash", { method: "POST", body: JSON.stringify({ action: "open", openingFloatCents, notes }) });
+    return result.session;
+  }
+
+  async function addCashMovement(movementType, amountCents, reason) {
+    const result = await request("tpv-cash", { method: "POST", body: JSON.stringify({ action: "movement", movementType, amountCents, reason }) });
+    return result.session;
+  }
+
+  async function closeCashSession(countedCashCents, notes) {
+    const result = await request("tpv-cash", { method: "PATCH", body: JSON.stringify({ action: "close", countedCashCents, notes }) });
+    return result.session;
+  }
+
   function saveRemoteProducts(data, products) {
     if (!data || !Array.isArray(products)) return data;
     data.prices = data.prices || {};
@@ -170,6 +190,8 @@
 
   window.BC_TPV_CLOUD = {
     archiveProduct,
+    addCashMovement,
+    closeCashSession,
     createProduct,
     createStaff,
     createTable,
@@ -177,6 +199,7 @@
     getSession,
     loadTables,
     login,
+    loadCashSession,
     loadKitchenOrders,
     loadOrders,
     loadProducts,
@@ -190,6 +213,7 @@
     saveRemoteTables,
     tableId,
     openOrder,
+    openCashSession,
     seedProducts,
     sendOrderToKitchen,
     updateKitchenOrder,

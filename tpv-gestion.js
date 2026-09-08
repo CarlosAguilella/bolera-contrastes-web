@@ -4,7 +4,7 @@
   const root = document.getElementById("tpv-gestion-root");
   if (!Core || !root) return;
 
-  const state = { tab: "ventas", search: "", staff: [], editingId: null, creatingProduct: window.location.hash === "#nuevo-articulo", editingTableId: null, deletingTableId: null, loginOpen: false, loginUsername: "carlos", data: Core.loadData(), toast: null };
+  const state = { tab: "ventas", search: "", staff: [], cashSession: null, cashHistory: [], editingId: null, creatingProduct: window.location.hash === "#nuevo-articulo", editingTableId: null, deletingTableId: null, loginOpen: false, loginUsername: "carlos", data: Core.loadData(), toast: null };
   let toastTimer = null;
   let draggedTable = null;
 
@@ -46,6 +46,16 @@
     if (!isCloudConnected() || !["admin", "manager"].includes(session().user.role)) return;
     state.staff = await Cloud.loadStaff();
   }
+  async function refreshCloudCash() {
+    if (!isCloudConnected()) return;
+    try {
+      state.cashSession = await Cloud.loadCashSession();
+      if (["admin", "manager"].includes(session().user.role)) state.cashHistory = await Cloud.loadCashSession(true);
+    } catch (error) {
+      state.cashSession = null;
+      state.cashHistory = [];
+    }
+  }
   function flash(message) {
     state.toast = message;
     clearTimeout(toastTimer);
@@ -72,10 +82,10 @@
     state.data.sales.forEach((sale) => { if (sale.tableId === previousId) sale.tableId = nextId; });
   }
   function nav() {
-    return `<aside class="tpv-management-sidebar"><a class="tpv-brand" href="tpv.html"><span class="tpv-brand__mark">C</span><span class="tpv-brand__type"><strong>Contrastes</strong><small>Gestión TPV</small></span></a><nav><a href="tpv.html">← Volver al TPV</a><button type="button" class="${state.tab === "ventas" ? "is-active" : ""}" data-tab="ventas">Ventas</button><button type="button" class="${state.tab === "articulos" ? "is-active" : ""}" data-tab="articulos">Artículos y precios</button><button type="button" class="${state.tab === "sala" ? "is-active" : ""}" data-tab="sala">Sala y mesas</button><button type="button" class="${state.tab === "personal" ? "is-active" : ""}" data-tab="personal">Personal y PIN</button><button type="button" class="is-disabled" disabled>Clientes <small>Próximamente</small></button><button type="button" class="is-disabled" disabled>Proveedores <small>Próximamente</small></button></nav><p>Panel interno<br>Datos guardados en la base central.</p></aside>`;
+    return `<aside class="tpv-management-sidebar"><a class="tpv-brand" href="tpv.html"><span class="tpv-brand__mark">C</span><span class="tpv-brand__type"><strong>Contrastes</strong><small>Gestión TPV</small></span></a><nav><a href="tpv.html">← Volver al TPV</a><button type="button" class="${state.tab === "ventas" ? "is-active" : ""}" data-tab="ventas">Ventas</button><button type="button" class="${state.tab === "caja" ? "is-active" : ""}" data-tab="caja">Caja y cierres</button><button type="button" class="${state.tab === "articulos" ? "is-active" : ""}" data-tab="articulos">Artículos y precios</button><button type="button" class="${state.tab === "sala" ? "is-active" : ""}" data-tab="sala">Sala y mesas</button><button type="button" class="${state.tab === "personal" ? "is-active" : ""}" data-tab="personal">Personal y PIN</button><button type="button" class="is-disabled" disabled>Clientes <small>Próximamente</small></button><button type="button" class="is-disabled" disabled>Proveedores <small>Próximamente</small></button></nav><p>Panel interno<br>Datos guardados en la base central.</p></aside>`;
   }
   function topbar() {
-    const title = { ventas: "Ventas", articulos: "Artículos y precios", sala: "Sala y mesas", personal: "Personal y PIN" }[state.tab];
+    const title = { ventas: "Ventas", caja: "Caja y cierres", articulos: "Artículos y precios", sala: "Sala y mesas", personal: "Personal y PIN" }[state.tab];
     const user = session()?.user;
     return `<header class="tpv-gestion-topbar"><div><span>Administración</span><h1>${title}</h1></div><div class="tpv-gestion-topbar__actions"><span class="tpv-live">${user ? `Base central · ${escapeHtml(user.displayName)}` : "Datos locales"}</span>${user ? `<button class="tpv-action is-secondary" type="button" data-logout>Salir</button>` : `<button class="tpv-action is-secondary" type="button" data-open-login>Acceder</button>`}<a class="tpv-action is-secondary" href="tpv.html">TPV camarero</a></div></header>`;
   }
@@ -91,6 +101,13 @@
     const average = sales.length ? Math.round(total / sales.length) : 0;
     const products = groupSales();
     return `<section class="tpv-gestion-content"><div class="tpv-gestion-metrics"><article><span>Documentos</span><strong>${sales.length}</strong></article><article><span>Ventas</span><strong>${Core.formatEuros(total)}</strong></article><article><span>Ticket medio</span><strong>${Core.formatEuros(average)}</strong></article><article><span>Mesas abiertas</span><strong>${Object.keys(state.data.tables).length}</strong></article></div><div class="tpv-gestion-grid"><section class="tpv-gestion-card"><header><h2>Ventas por forma de pago</h2><span>Turno actual</span></header>${renderBars([{ label: "Tarjeta", value: card }, { label: "Efectivo", value: cash }], "euros")}</section><section class="tpv-gestion-card"><header><h2>Artículos más vendidos</h2><span>Según ventas registradas</span></header>${products.length ? renderBars(products.map((item) => ({ label: item.product.name, value: item.qty })), "units") : `<p class="tpv-gestion-empty">Aún no hay ventas con detalle.</p>`}</section></div><section class="tpv-gestion-card"><header><h2>Últimas ventas</h2><span>${sales.length} documentos registrados</span></header><div class="tpv-sales-table"><div class="tpv-sales-row is-heading"><span>Documento</span><span>Mesa</span><span>Forma de pago</span><span>Total</span></div>${sales.length ? sales.slice(0, 8).map((sale) => `<div class="tpv-sales-row"><b>${escapeHtml(sale.id)}</b><span>Mesa ${escapeHtml(sale.tableId)}</span><span>${sale.method === "card" ? "Tarjeta" : "Efectivo"}</span><strong>${Core.formatEuros(sale.totalCents)}</strong></div>`).join("") : `<p class="tpv-gestion-empty">Aún no hay ventas registradas.</p>`}</div></section></section>`;
+  }
+  function renderCashManagement() {
+    const active = state.cashSession;
+    const summary = active?.summary;
+    const history = state.cashHistory;
+    if (!isCloudConnected()) return `<section class="tpv-gestion-content"><section class="tpv-gestion-card"><p class="tpv-gestion-empty">Inicia sesión como administrador para consultar las cajas y cierres.</p></section></section>`;
+    return `<section class="tpv-gestion-content"><div class="tpv-gestion-metrics"><article><span>Caja actual</span><strong>${active ? "Abierta" : "Cerrada"}</strong></article><article><span>Ventas del turno</span><strong>${Core.formatEuros(summary?.totalSalesCents || 0)}</strong></article><article><span>Efectivo esperado</span><strong>${Core.formatEuros(summary?.expectedCashCents || 0)}</strong></article><article><span>Tarjeta</span><strong>${Core.formatEuros(summary?.cardSalesCents || 0)}</strong></article></div><section class="tpv-gestion-card"><header><div><h2>Operativa de caja</h2><span>${active ? `Abierta el ${new Date(active.opened_at).toLocaleString("es-ES")}` : "No hay ningún turno abierto"}</span></div><a class="tpv-action" href="tpv.html">Ir a Caja</a></header>${active ? `<div class="tpv-cash-management"><p>Fondo inicial: <strong>${Core.formatEuros(active.opening_float_cents)}</strong></p><p>Ventas efectivo: <strong>${Core.formatEuros(summary.cashSalesCents)}</strong></p><p>Movimientos manuales: <strong>${summary.movementCents >= 0 ? "+" : ""}${Core.formatEuros(summary.movementCents)}</strong></p></div>` : `<p class="tpv-gestion-empty">Abre el turno desde la sección Caja del TPV.</p>`}</section><section class="tpv-gestion-card"><header><div><h2>Últimos cierres</h2><span>Se conservan para revisar el resultado del turno</span></div></header><div class="tpv-sales-table"><div class="tpv-cash-history-row is-heading"><span>Cerrado</span><span>Ventas</span><span>Esperado</span><span>Contado</span><span>Diferencia</span></div>${history.length ? history.map((cashSession) => `<div class="tpv-cash-history-row"><span>${new Date(cashSession.closed_at).toLocaleString("es-ES")}</span><strong>${Core.formatEuros(cashSession.total_sales_cents)}</strong><span>${Core.formatEuros(cashSession.expected_cash_cents)}</span><span>${Core.formatEuros(cashSession.counted_cash_cents)}</span><b class="${Number(cashSession.difference_cents) === 0 ? "" : "is-difference"}">${Core.formatEuros(cashSession.difference_cents)}</b></div>`).join("") : `<p class="tpv-gestion-empty">Aún no hay cierres registrados.</p>`}</div></section></section>`;
   }
   function renderArticles() {
     const query = state.search.trim().toLocaleLowerCase("es");
@@ -137,7 +154,7 @@
     return `<div class="tpv-modal-backdrop"><form class="tpv-modal" data-login-form><button class="tpv-modal__close" type="button" data-close-login aria-label="Cerrar">×</button><h2>¿Quién entra?</h2><p>${waiter ? "Selecciona tu nombre para entrar al TPV." : "El acceso de administración requiere PIN."}</p><div class="tpv-login-users">${options.map(([username, label, role]) => `<button class="tpv-login-user ${state.loginUsername === username ? "is-active" : ""}" type="button" data-login-user="${username}"><b>${label}</b><small>${role}</small></button>`).join("")}</div><label>Usuario<input name="username" value="${state.loginUsername}" readonly></label>${waiter ? "" : `<label>PIN<input name="pin" type="password" inputmode="numeric" autocomplete="current-password" pattern="[0-9]{4,10}" minlength="4" maxlength="10" required autofocus></label>`}<div class="tpv-modal__actions"><button class="tpv-action is-secondary" type="button" data-close-login>Cancelar</button><button class="tpv-action" type="submit">Entrar</button></div></form></div>`;
   }
   function render() {
-    const content = state.tab === "ventas" ? renderSales() : state.tab === "articulos" ? renderArticles() : state.tab === "personal" ? renderStaff() : renderTables();
+    const content = state.tab === "ventas" ? renderSales() : state.tab === "caja" ? renderCashManagement() : state.tab === "articulos" ? renderArticles() : state.tab === "personal" ? renderStaff() : renderTables();
     root.innerHTML = `<div class="tpv-management-app">${nav()}<main class="tpv-management-main">${topbar()}${content}</main>${priceModal()}${tableModal()}${loginModal()}${state.toast ? `<div class="tpv-toast is-success">${escapeHtml(state.toast)}</div>` : ""}</div>`;
   }
   function closeProductModal() {
@@ -150,7 +167,7 @@
     if (action) { event.preventDefault(); state.creatingProduct = true; render(); return; }
     const button = event.target.closest("button");
     if (!button) return;
-    if (button.dataset.tab) { state.tab = button.dataset.tab; if (state.tab === "personal") { refreshCloudStaff().then(render).catch((error) => { flash(error.message); render(); }); } render(); return; }
+    if (button.dataset.tab) { state.tab = button.dataset.tab; if (state.tab === "personal") { refreshCloudStaff().then(render).catch((error) => { flash(error.message); render(); }); } if (state.tab === "caja") { refreshCloudCash().then(render).catch((error) => { flash(error.message); render(); }); } render(); return; }
     if (button.dataset.loginUser) { state.loginUsername = button.dataset.loginUser; render(); return; }
     if (button.dataset.openLogin !== undefined) { state.loginOpen = true; render(); return; }
     if (button.dataset.closeLogin !== undefined) { state.loginOpen = false; render(); return; }
@@ -251,6 +268,7 @@
           await refreshCloudProducts();
           await refreshCloudSales();
           await refreshCloudStaff();
+          await refreshCloudCash();
           state.loginOpen = false;
           flash("Sesión iniciada. Las mesas ya usan la base central.");
           render();
@@ -344,7 +362,7 @@
     render();
   });
   if (isCloudConnected()) {
-    Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales(), refreshCloudStaff()]).then(render).catch(() => {});
-    window.setInterval(() => Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales()]).then(render).catch(() => {}), 15000);
+    Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales(), refreshCloudStaff(), refreshCloudCash()]).then(render).catch(() => {});
+    window.setInterval(() => Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales(), refreshCloudCash()]).then(render).catch(() => {}), 15000);
   }
 })();

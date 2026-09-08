@@ -19,7 +19,7 @@ function ensureLines(lines, allowEmpty = false) {
   lines.forEach((line) => {
     const externalId = cleanText(line.productId, 80);
     const quantity = Number.parseInt(line.qty, 10);
-    if (!/^bolera-\d+$/.test(externalId) || !Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
+    if (!/^(bolera-\d+|custom-[a-z0-9-]+)$/.test(externalId) || !Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
       throw Object.assign(new Error("Una línea de la comanda no es válida."), { statusCode: 400 });
     }
     quantities.set(externalId, (quantities.get(externalId) || 0) + quantity);

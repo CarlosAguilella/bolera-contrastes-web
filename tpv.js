@@ -4,7 +4,7 @@
   const root = document.getElementById("tpv-root");
   if (!Core || !root) return;
 
-  const state = { page: "sala", selectedTableId: null, category: "all", modal: null, loginUsername: "carlos", toast: null, data: Core.loadData() };
+  const state = { page: "sala", selectedTableId: null, category: "all", modal: null, loginUsername: "carlos", toast: null, cashSession: null, data: Core.loadData() };
   let toastTimer = null;
   const orderSyncQueues = new Map();
 
@@ -17,6 +17,11 @@
   function save() { Core.saveData(state.data); }
   function session() { return Cloud?.getSession?.() || null; }
   function isCloudConnected() { return Boolean(session()); }
+  function canManageCash() { return ["admin", "manager"].includes(session()?.user?.role); }
+  async function refreshCashSession() {
+    if (!isCloudConnected()) return;
+    try { state.cashSession = await Cloud.loadCashSession(); } catch (error) { state.cashSession = null; }
+  }
   function productExternalIds() {
     return Object.fromEntries(Object.entries(state.data.cloudProductIds || {}).map(([externalId, id]) => [id, externalId]));
   }
@@ -183,6 +188,7 @@
       try {
         await queueOrderSave(state.selectedTableId);
         await Cloud.payOrder(ticket.cloudOrderId, method, ticket.lines);
+        await refreshCashSession();
       } catch (error) {
         flash(error.message);
         render();
@@ -242,14 +248,30 @@
   }
   function renderCash() {
     const sales = state.data.sales;
-    const card = sales.filter((sale) => sale.method === "card").reduce((sum, sale) => sum + sale.totalCents, 0);
-    const cash = sales.filter((sale) => sale.method === "cash").reduce((sum, sale) => sum + sale.totalCents, 0);
-    return `${topbar("Caja", "Resumen del turno actual")}<section class="tpv-cash"><div><div class="tpv-cash__summary"><article class="tpv-metric"><span>Ventas registradas</span><strong>${Core.formatEuros(card + cash)}</strong></article><article class="tpv-metric"><span>Tarjeta</span><strong>${Core.formatEuros(card)}</strong></article><article class="tpv-metric"><span>Efectivo</span><strong>${Core.formatEuros(cash)}</strong></article></div><section class="tpv-panel tpv-open-bills"><div class="tpv-panel__head"><div><h2>Mesas pendientes de cobro</h2><span>Selecciona una para abrir la cuenta</span></div></div>${Object.keys(state.data.tables).length ? Object.keys(state.data.tables).map((tableId) => { const ticket = state.data.tables[tableId]; return `<div class="tpv-bill"><div><strong>Mesa ${tableId}</strong><small>${lineCount(ticket.lines)} productos · ${timeSince(ticket.openedAt)}</small></div><span class="tpv-bill__amount">${Core.formatEuros(total(ticket.lines))}</span><button type="button" class="tpv-action is-secondary" data-open-table="${tableId}">Abrir</button></div>`; }).join("") : `<p class="tpv-ticket__empty">No hay mesas abiertas.</p>`}</section></div><aside class="tpv-panel"><div class="tpv-panel__head"><div><h2>Operativa</h2><span>Resumen de la caja</span></div></div><div class="tpv-insight"><p>Las ventas registradas aparecen en el panel de gestión reservado a administración.</p></div></aside></section>`;
+    const localCard = sales.filter((sale) => sale.method === "card").reduce((sum, sale) => sum + sale.totalCents, 0);
+    const localCash = sales.filter((sale) => sale.method === "cash").reduce((sum, sale) => sum + sale.totalCents, 0);
+    const summary = state.cashSession?.summary;
+    const card = summary ? summary.cardSalesCents : localCard;
+    const cash = summary ? summary.cashSalesCents : localCash;
+    const movements = summary?.movements || [];
+    const status = !isCloudConnected() ? "Datos locales" : state.cashSession ? `Abierta desde ${new Date(state.cashSession.opened_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}` : "Sin caja abierta";
+    let operations = "";
+    if (!isCloudConnected()) operations = `<p>Inicia sesión para gestionar la caja central.</p>`;
+    else if (!state.cashSession) operations = canManageCash() ? `<p>Abre el turno antes de registrar movimientos o realizar el cierre.</p><button type="button" class="tpv-action" data-open-cash>Abrir caja</button>` : `<p>No hay caja abierta. Un administrador debe abrir el turno.</p>`;
+    else operations = `<div class="tpv-cash-expected"><span>Efectivo esperado</span><strong>${Core.formatEuros(summary.expectedCashCents)}</strong><small>Fondo ${Core.formatEuros(state.cashSession.opening_float_cents)} · movimientos ${summary.movementCents >= 0 ? "+" : ""}${Core.formatEuros(summary.movementCents)}</small></div>${canManageCash() ? `<div class="tpv-cash-actions"><button type="button" class="tpv-action is-secondary" data-cash-movement>Entrada / salida</button><button type="button" class="tpv-action" data-close-cash>Cerrar turno</button></div>` : `<p>Solo administración puede realizar movimientos o cerrar turno.</p>`}${movements.length ? `<ul class="tpv-cash-movements">${movements.map((movement) => `<li><span>${movement.movement_type === "in" ? "Entrada" : "Salida"} · ${escapeHtml(movement.reason)}</span><b class="${movement.movement_type === "out" ? "is-out" : ""}">${movement.movement_type === "out" ? "−" : "+"}${Core.formatEuros(movement.amount_cents)}</b></li>`).join("")}</ul>` : `<p class="tpv-cash-empty">No hay movimientos manuales.</p>`}`;
+    return `${topbar("Caja", status)}<section class="tpv-cash"><div><div class="tpv-cash__summary"><article class="tpv-metric"><span>Ventas del turno</span><strong>${Core.formatEuros(card + cash)}</strong></article><article class="tpv-metric"><span>Tarjeta</span><strong>${Core.formatEuros(card)}</strong></article><article class="tpv-metric"><span>Efectivo</span><strong>${Core.formatEuros(cash)}</strong></article></div><section class="tpv-panel tpv-open-bills"><div class="tpv-panel__head"><div><h2>Mesas pendientes de cobro</h2><span>Selecciona una para abrir la cuenta</span></div></div>${Object.keys(state.data.tables).length ? Object.keys(state.data.tables).map((tableId) => { const ticket = state.data.tables[tableId]; return `<div class="tpv-bill"><div><strong>Mesa ${tableId}</strong><small>${lineCount(ticket.lines)} productos · ${timeSince(ticket.openedAt)}</small></div><span class="tpv-bill__amount">${Core.formatEuros(total(ticket.lines))}</span><button type="button" class="tpv-action is-secondary" data-open-table="${tableId}">Abrir</button></div>`; }).join("") : `<p class="tpv-ticket__empty">No hay mesas abiertas.</p>`}</section></div><aside class="tpv-panel"><div class="tpv-panel__head"><div><h2>Operativa</h2><span>${status}</span></div></div><div class="tpv-insight">${operations}</div></aside></section>`;
   }
   function paymentModal() {
     if (state.modal !== "payment") return "";
     const ticket = state.data.tables[state.selectedTableId];
     return `<div class="tpv-modal-backdrop"><section class="tpv-modal"><button class="tpv-modal__close" type="button" data-close-modal="true" aria-label="Cerrar">×</button><h2>Cobrar mesa ${state.selectedTableId}</h2><p>Total a registrar: <strong>${Core.formatEuros(total(ticket?.lines || []))}</strong></p><div class="tpv-payment-options"><button type="button" data-pay="card"><b>Tarjeta</b><span>Confirmar en TPV bancario</span></button><button type="button" data-pay="cash"><b>Efectivo</b><span>Registrar cobro en caja</span></button></div><p class="tpv-modal__note">El pago con tarjeta se confirma después de cobrarlo en el terminal físico.</p></section></div>`;
+  }
+  function cashModal() {
+    if (!state.modal?.startsWith("cash-")) return "";
+    if (state.modal === "cash-open") return `<div class="tpv-modal-backdrop"><form class="tpv-modal" data-cash-open-form><button class="tpv-modal__close" type="button" data-close-modal aria-label="Cerrar">×</button><h2>Abrir caja</h2><p>Introduce el efectivo con el que empieza el turno.</p><label>Fondo inicial (€)<input name="openingFloat" type="number" min="0" step="0.01" required autofocus></label><label>Nota opcional<input name="notes" maxlength="500" placeholder="Ej. Cambio preparado"></label><div class="tpv-modal__actions"><button class="tpv-action is-secondary" type="button" data-close-modal>Cancelar</button><button class="tpv-action" type="submit">Abrir turno</button></div></form></div>`;
+    if (state.modal === "cash-movement") return `<div class="tpv-modal-backdrop"><form class="tpv-modal" data-cash-movement-form><button class="tpv-modal__close" type="button" data-close-modal aria-label="Cerrar">×</button><h2>Movimiento de caja</h2><p>Registra una entrada o salida manual de efectivo.</p><label>Tipo<select name="movementType"><option value="out">Salida de efectivo</option><option value="in">Entrada de efectivo</option></select></label><label>Importe (€)<input name="amount" type="number" min="0.01" step="0.01" required></label><label>Motivo<input name="reason" maxlength="240" required placeholder="Ej. Pago a proveedor"></label><div class="tpv-modal__actions"><button class="tpv-action is-secondary" type="button" data-close-modal>Cancelar</button><button class="tpv-action" type="submit">Registrar</button></div></form></div>`;
+    const expected = state.cashSession?.summary?.expectedCashCents || 0;
+    return `<div class="tpv-modal-backdrop"><form class="tpv-modal" data-cash-close-form><button class="tpv-modal__close" type="button" data-close-modal aria-label="Cerrar">×</button><h2>Cerrar turno</h2><p>Efectivo esperado: <strong>${Core.formatEuros(expected)}</strong>. Cuenta el efectivo real antes de confirmar.</p><label>Efectivo contado (€)<input name="countedCash" type="number" min="0" step="0.01" required autofocus></label><label>Observaciones<input name="notes" maxlength="500" placeholder="Opcional"></label><div class="tpv-modal__actions"><button class="tpv-action is-secondary" type="button" data-close-modal>Cancelar</button><button class="tpv-action is-danger" type="submit">Cerrar turno</button></div></form></div>`;
   }
   function loginModal() {
     if (state.modal !== "login") return "";
@@ -259,7 +281,7 @@
   }
   function render() {
     const view = state.page === "comanda" ? renderOrder() : state.page === "cocina" ? renderKitchen() : state.page === "caja" ? renderCash() : renderFloor();
-    root.innerHTML = `<div class="tpv-app">${sidebar()}<main class="tpv-main">${view}</main>${paymentModal()}${loginModal()}${state.toast ? `<div class="tpv-toast ${state.toast.tone ? `is-${state.toast.tone}` : ""}">${escapeHtml(state.toast.message)}</div>` : ""}</div>`;
+    root.innerHTML = `<div class="tpv-app">${sidebar()}<main class="tpv-main">${view}</main>${paymentModal()}${cashModal()}${loginModal()}${state.toast ? `<div class="tpv-toast ${state.toast.tone ? `is-${state.toast.tone}` : ""}">${escapeHtml(state.toast.message)}</div>` : ""}</div>`;
   }
   root.addEventListener("click", (event) => {
     const button = event.target.closest("button, [data-nav]");
@@ -275,27 +297,55 @@
     if (button.dataset.changeLine) { changeLine(button.dataset.changeLine, Number(button.dataset.amount)); return; }
     if (button.dataset.sendKitchen) { sendKitchen(); return; }
     if (button.dataset.kitchenOrder) { moveKitchenOrder(button.dataset.kitchenOrder, button.dataset.kitchenStatus); return; }
+    if (button.dataset.openCash !== undefined) { state.modal = "cash-open"; render(); return; }
+    if (button.dataset.cashMovement !== undefined) { state.modal = "cash-movement"; render(); return; }
+    if (button.dataset.closeCash !== undefined) { state.modal = "cash-close"; render(); return; }
     if (button.dataset.openPayment) { state.modal = "payment"; render(); return; }
     if (button.dataset.closeModal) { state.modal = null; render(); return; }
     if (button.dataset.pay) { pay(button.dataset.pay); return; }
     if (button.dataset.resetDemo) resetDemo();
   });
   root.addEventListener("submit", (event) => {
-    if (!event.target.matches("[data-login-form]")) return;
-    event.preventDefault();
-    const form = new FormData(event.target);
-    Cloud.login(state.loginUsername, String(form.get("pin") || ""))
-      .then(async () => {
-        await refreshCloudState();
-        state.modal = null;
-        flash("Sesión iniciada. Las mesas están sincronizadas.", "success");
-        render();
-      })
-      .catch((error) => { flash(error.message); render(); });
+    if (event.target.matches("[data-login-form]")) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      Cloud.login(state.loginUsername, String(form.get("pin") || ""))
+        .then(async () => {
+          await Promise.all([refreshCloudState(), refreshCashSession()]);
+          state.modal = null;
+          flash("Sesión iniciada. Las mesas están sincronizadas.", "success");
+          render();
+        })
+        .catch((error) => { flash(error.message); render(); });
+      return;
+    }
+    if (event.target.matches("[data-cash-open-form]")) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      Cloud.openCashSession(Math.round(Number(form.get("openingFloat")) * 100), String(form.get("notes") || ""))
+        .then((cashSession) => { state.cashSession = cashSession; state.modal = null; flash("Caja abierta correctamente.", "success"); render(); })
+        .catch((error) => { flash(error.message); render(); });
+      return;
+    }
+    if (event.target.matches("[data-cash-movement-form]")) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      Cloud.addCashMovement(String(form.get("movementType")), Math.round(Number(form.get("amount")) * 100), String(form.get("reason") || ""))
+        .then((cashSession) => { state.cashSession = cashSession; state.modal = null; flash("Movimiento registrado.", "success"); render(); })
+        .catch((error) => { flash(error.message); render(); });
+      return;
+    }
+    if (event.target.matches("[data-cash-close-form]")) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      Cloud.closeCashSession(Math.round(Number(form.get("countedCash")) * 100), String(form.get("notes") || ""))
+        .then((cashSession) => { state.cashSession = null; state.modal = null; flash(`Turno cerrado. Diferencia: ${Core.formatEuros(cashSession.difference_cents)}.`, "success"); render(); })
+        .catch((error) => { flash(error.message); render(); });
+    }
   });
   render();
   if (session()) {
-    refreshCloudState().then(render).catch(() => {});
-    window.setInterval(() => refreshCloudState().then(render).catch(() => {}), 15000);
+    Promise.all([refreshCloudState(), refreshCashSession()]).then(render).catch(() => {});
+    window.setInterval(() => Promise.all([refreshCloudState(), refreshCashSession()]).then(render).catch(() => {}), 15000);
   }
 })();
