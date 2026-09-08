@@ -501,3 +501,78 @@ button:disabled { cursor: not-allowed; opacity: .48; }
   .tpv-staff-form .tpv-action { grid-column: 1 / -1; }
   .tpv-staff-list { padding: 0 14px; }
 }
+
+@media (max-width: 800px) {
+  body { overflow-x: hidden; }
+  .tpv-sidebar { -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .tpv-sidebar::-webkit-scrollbar, .tpv-management-sidebar::-webkit-scrollbar, .tpv-category-filter::-webkit-scrollbar { display: none; }
+  .tpv-sidebar__bottom { display: flex; flex: none; align-items: center; gap: 3px; margin: 0 0 0 auto; padding: 0; }
+  .tpv-sidebar__bottom .tpv-user, .tpv-sidebar__bottom .tpv-reset:last-child { display: none; }
+  .tpv-sidebar__bottom .tpv-reset { padding: 8px 7px; color: #d6d6d2; white-space: nowrap; }
+  .tpv-topbar { align-items: flex-start; flex-wrap: wrap; }
+  .tpv-topbar .tpv-live { margin-left: auto; }
+  .tpv-ticket__items { max-height: min(42dvh, 360px); }
+  .tpv-cash-management { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 620px) {
+  .tpv-main { padding: 18px 12px calc(30px + env(safe-area-inset-bottom)); }
+  .tpv-sidebar { top: 0; min-height: 58px; padding: 8px; }
+  .tpv-nav button { min-height: 38px; padding: 8px 10px; }
+  .tpv-topbar { gap: 10px; }
+  .tpv-topbar h1 { font-size: clamp(35px, 12vw, 44px); }
+  .tpv-topbar .tpv-live { max-width: 100%; padding: 7px 9px; font-size: 10px; white-space: nowrap; }
+  .tpv-panel__head { align-items: flex-start; flex-direction: column; padding: 15px; }
+  .tpv-panel__head .tpv-action { width: 100%; }
+  .tpv-category-filter { gap: 7px; padding-inline: 12px; }
+  .tpv-category-filter button { min-height: 38px; white-space: nowrap; }
+  .tpv-product__price { font-size: 19px !important; }
+  .tpv-ticket__items li { padding: 12px 14px; }
+  .tpv-ticket__head, .tpv-ticket__total, .tpv-ticket__actions { padding-inline: 14px; }
+  .tpv-ticket__total strong { font-size: 31px; }
+  .tpv-cash-management { grid-template-columns: 1fr; padding: 14px; }
+  .tpv-cash-history-row { min-width: 650px; }
+  .tpv-modal-backdrop { align-items: end; padding: 0; }
+  .tpv-modal { width: 100%; max-height: min(88dvh, 720px); overflow-y: auto; border-radius: 20px 20px 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom)); }
+  .tpv-modal h2 { font-size: 30px; }
+  .tpv-modal label { margin-top: 12px; }
+  .tpv-modal select { width: 100%; min-height: 43px; padding: 10px 11px; border: 1px solid var(--tpv-line); border-radius: 9px; background: #fff; }
+  .tpv-modal__actions { flex-wrap: wrap; }
+  .tpv-modal__actions .tpv-action { flex: 1 1 140px; }
+  .tpv-article-form-page { align-items: start; padding: 14px; }
+  .tpv-article-form { padding: 21px 16px; border-radius: 14px; }
+  .tpv-article-form h1 { font-size: 39px; }
+  .tpv-article-form .tpv-action { width: 100%; justify-content: center; text-align: center; }
+  .tpv-gestion-header-actions { width: 100%; flex-direction: column; align-items: stretch; }
+  .tpv-gestion-header-actions .tpv-action { width: 100%; text-align: center; }
+  .tpv-gestion-topbar__actions { flex-wrap: wrap; }
+  .tpv-gestion-topbar__actions .tpv-live { width: 100%; order: -1; }
+  .tpv-management-note { padding: 16px; }
+  .kitchen-screen-top { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 14px; }
+  .kitchen-screen-top__title { order: -1; flex: 1 1 100%; }
+  .kitchen-screen-top__title h1 { font-size: 38px; }
+  .kitchen-screen-top__actions { margin-left: auto; }
+  .kitchen-screen-top__actions .tpv-live { display: none; }
+  .kitchen-screen-board { gap: 10px; padding: 10px; }
+  .kitchen-screen-column { padding: 10px; border-radius: 12px; }
+  .kitchen-screen-card { padding: 15px; margin-bottom: 10px; }
+  .kitchen-screen-card header strong { font-size: 34px; }
+  .kitchen-screen-card li { font-size: 17px; }
+  .kitchen-screen-welcome { min-height: calc(100dvh - 126px); padding: 18px; }
+  .kitchen-screen-welcome h2 { font-size: 39px; }
+}
+
+@media (max-width: 390px) {
+  .tpv-brand__mark { width: 31px; height: 31px; }
+  .tpv-nav button { padding-inline: 9px; font-size: 11px; }
+  .tpv-sidebar__bottom .tpv-reset { padding-inline: 5px; font-size: 10px; }
+  .tpv-topbar .tpv-live { margin-left: 0; }
+  .tpv-catalog { gap: 10px; padding: 10px; }
+  .tpv-product { padding: 13px; }
+  .tpv-floor { padding: 12px 10px; }
+  .tpv-gestion-metrics { grid-template-columns: 1fr 1fr; }
+  .tpv-gestion-metrics strong { font-size: 23px; }
+  .tpv-management-sidebar { padding-inline: 8px; }
+  .tpv-management-sidebar .tpv-brand { display: none; }
+  .kitchen-screen-card button { min-height: 44px; }
+}
