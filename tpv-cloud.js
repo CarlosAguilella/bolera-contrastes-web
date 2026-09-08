@@ -104,22 +104,22 @@
   }
 
   async function loadCashSession(history = false) {
-    const result = await request(`tpv-cash${history ? "?scope=history" : ""}`);
+    const result = await request(`tpv-orders?scope=${history ? "cash_history" : "cash"}`);
     return history ? result.sessions || [] : result.session || null;
   }
 
   async function openCashSession(openingFloatCents, notes) {
-    const result = await request("tpv-cash", { method: "POST", body: JSON.stringify({ action: "open", openingFloatCents, notes }) });
+    const result = await request("tpv-orders", { method: "POST", body: JSON.stringify({ action: "cash_open", openingFloatCents, notes }) });
     return result.session;
   }
 
   async function addCashMovement(movementType, amountCents, reason) {
-    const result = await request("tpv-cash", { method: "POST", body: JSON.stringify({ action: "movement", movementType, amountCents, reason }) });
+    const result = await request("tpv-orders", { method: "POST", body: JSON.stringify({ action: "cash_movement", movementType, amountCents, reason }) });
     return result.session;
   }
 
   async function closeCashSession(countedCashCents, notes) {
-    const result = await request("tpv-cash", { method: "PATCH", body: JSON.stringify({ action: "close", countedCashCents, notes }) });
+    const result = await request("tpv-orders", { method: "PATCH", body: JSON.stringify({ action: "cash_close", countedCashCents, notes }) });
     return result.session;
   }
 

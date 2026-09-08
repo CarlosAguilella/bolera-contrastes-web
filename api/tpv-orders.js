@@ -90,6 +90,36 @@ function kitchenItems(items) {
   }));
 }
 
+const CASH_MANAGER_ROLES = ["admin", "manager"];
+
+function cashCents(value, label) {
+  const amount = Math.round(Number(value));
+  if (!Number.isInteger(amount) || amount < 0) throw Object.assign(new Error(`El ${label} no es válido.`), { statusCode: 400 });
+  return amount;
+}
+
+async function openCashSession(config) {
+  const rows = await supabaseRequest(config, "cash_sessions?status=eq.open&select=*&limit=1", { method: "GET" });
+  return Array.isArray(rows) ? rows[0] || null : null;
+}
+
+async function cashSummary(config, cashSession) {
+  if (!cashSession) return null;
+  const [orders, movements] = await Promise.all([
+    supabaseRequest(config, `pos_orders?status=eq.paid&closed_at=gte.${encodeURIComponent(cashSession.opened_at)}&select=total_cents,payment_method`, { method: "GET" }),
+    supabaseRequest(config, `cash_movements?cash_session_id=eq.${encodeURIComponent(cashSession.id)}&select=*&order=created_at.desc`, { method: "GET" }),
+  ]);
+  const sales = (orders || []).reduce((total, order) => {
+    const amount = Number(order.total_cents || 0);
+    total.totalSalesCents += amount;
+    if (order.payment_method === "cash") total.cashSalesCents += amount;
+    else if (order.payment_method === "card") total.cardSalesCents += amount;
+    return total;
+  }, { totalSalesCents: 0, cashSalesCents: 0, cardSalesCents: 0 });
+  const movementCents = (movements || []).reduce((total, movement) => total + (movement.movement_type === "in" ? 1 : -1) * Number(movement.amount_cents || 0), 0);
+  return { ...cashSession, summary: { ...sales, movementCents, expectedCashCents: Number(cashSession.opening_float_cents || 0) + sales.cashSalesCents + movementCents, movements: Array.isArray(movements) ? movements : [] } };
+}
+
 module.exports = async function handler(req, res) {
   try {
     const config = requireConfig(getConfig());
@@ -98,6 +128,12 @@ module.exports = async function handler(req, res) {
     if (req.method === "GET") {
       const url = new URL(req.url || "/", `https://${req.headers.host || "localhost"}`);
       const scope = url.searchParams.get("scope");
+      if (scope === "cash") return res.status(200).json({ ok: true, session: await cashSummary(config, await openCashSession(config)) });
+      if (scope === "cash_history") {
+        requireRoles(req, CASH_MANAGER_ROLES);
+        const sessions = await supabaseRequest(config, "cash_sessions?status=eq.closed&select=*&order=closed_at.desc&limit=30", { method: "GET" });
+        return res.status(200).json({ ok: true, sessions: Array.isArray(sessions) ? sessions : [] });
+      }
       const orders = await supabaseRequest(
         config,
         scope === "sales"
@@ -109,6 +145,49 @@ module.exports = async function handler(req, res) {
     }
 
     const body = await readRequestBody(req);
+    if (req.method === "POST" && body.action === "cash_open") {
+      const manager = requireRoles(req, CASH_MANAGER_ROLES);
+      if (await openCashSession(config)) return res.status(409).json({ ok: false, error: "Ya hay una caja abierta." });
+      const openingFloatCents = cashCents(body.openingFloatCents, "fondo inicial");
+      const rows = await supabaseRequest(config, "cash_sessions", {
+        method: "POST",
+        body: JSON.stringify({ opening_float_cents: openingFloatCents, opening_notes: cleanText(body.notes, 500) || null, opened_by: manager.sub }),
+      });
+      const cashSession = Array.isArray(rows) ? rows[0] : rows;
+      await audit(config, manager.sub, "cash_sessions", cashSession.id, "open", { openingFloatCents });
+      return res.status(201).json({ ok: true, session: await cashSummary(config, cashSession) });
+    }
+    if (req.method === "POST" && body.action === "cash_movement") {
+      const manager = requireRoles(req, CASH_MANAGER_ROLES);
+      const cashSession = await openCashSession(config);
+      if (!cashSession) return res.status(409).json({ ok: false, error: "No hay una caja abierta." });
+      const movementType = body.movementType === "out" ? "out" : body.movementType === "in" ? "in" : "";
+      const amountCents = cashCents(body.amountCents, "importe");
+      const reason = cleanText(body.reason, 240);
+      if (!movementType || !reason) return res.status(400).json({ ok: false, error: "Indica el tipo y el motivo del movimiento." });
+      await supabaseRequest(config, "cash_movements", {
+        method: "POST",
+        body: JSON.stringify({ cash_session_id: cashSession.id, movement_type: movementType, amount_cents: amountCents, reason, created_by: manager.sub }),
+      });
+      await audit(config, manager.sub, "cash_sessions", cashSession.id, "movement", { movementType, amountCents, reason });
+      return res.status(201).json({ ok: true, session: await cashSummary(config, cashSession) });
+    }
+    if (req.method === "PATCH" && body.action === "cash_close") {
+      const manager = requireRoles(req, CASH_MANAGER_ROLES);
+      const cashSession = await openCashSession(config);
+      if (!cashSession) return res.status(409).json({ ok: false, error: "No hay una caja abierta." });
+      const countedCashCents = cashCents(body.countedCashCents, "efectivo contado");
+      const currentCash = await cashSummary(config, cashSession);
+      const expectedCashCents = currentCash.summary.expectedCashCents;
+      const differenceCents = countedCashCents - expectedCashCents;
+      const rows = await supabaseRequest(config, `cash_sessions?id=eq.${encodeURIComponent(cashSession.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "closed", expected_cash_cents: expectedCashCents, counted_cash_cents: countedCashCents, difference_cents: differenceCents, cash_sales_cents: currentCash.summary.cashSalesCents, card_sales_cents: currentCash.summary.cardSalesCents, total_sales_cents: currentCash.summary.totalSalesCents, closing_notes: cleanText(body.notes, 500) || null, closed_by: manager.sub, closed_at: new Date().toISOString() }),
+      });
+      const closedCashSession = Array.isArray(rows) ? rows[0] : rows;
+      await audit(config, manager.sub, "cash_sessions", cashSession.id, "close", { expectedCashCents, countedCashCents, differenceCents });
+      return res.status(200).json({ ok: true, session: closedCashSession });
+    }
     if (req.method === "POST") {
       const table = await findTable(config, body.tableNumber);
       const current = await supabaseRequest(
