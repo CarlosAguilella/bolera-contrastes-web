@@ -25,7 +25,9 @@
     if (!isCloudConnected()) return;
     let products = await Cloud.loadProducts(includeInactive);
     if (!products.length && ["admin", "manager"].includes(session().user.role)) products = await Cloud.seedProducts();
+    const categories = await Cloud.loadCategories();
     Cloud.saveRemoteProducts(state.data, products);
+    Cloud.saveRemoteCategories(state.data, categories);
     save();
   }
   async function refreshCloudSales() {
@@ -113,7 +115,9 @@
     const query = state.search.trim().toLocaleLowerCase("es");
     const products = Core.getProducts(state.data, true).filter((item) => `${item.name} ${item.category}`.toLocaleLowerCase("es").includes(query));
     const canManage = ["admin", "manager"].includes(session()?.user?.role);
-    return `<section class="tpv-gestion-content"><section class="tpv-gestion-card"><header><div><h2>Catálogo del restaurante</h2><span>${products.length} artículos · sincronizados en todos los TPV</span></div><div class="tpv-gestion-header-actions"><label class="tpv-search"><span>⌕</span><input type="search" value="${escapeHtml(state.search)}" placeholder="Buscar artículo" data-search-products></label>${canManage ? `<a class="tpv-action" href="tpv-articulo-nuevo">Nuevo artículo</a>` : ""}</div></header><div class="tpv-articles-table"><div class="tpv-articles-row is-heading"><span>Artículo</span><span>Familia</span><span>PVP</span><span>Coste compra</span><span>Margen</span><span></span></div>${products.map((item) => { const pvp = item.priceCents; const cost = state.data.costs?.[item.id]; const margin = Number.isFinite(Number(cost)) ? pvp - Number(cost) : null; return `<div class="tpv-articles-row ${item.active === false ? "is-inactive" : ""}"><div><b>${escapeHtml(item.name)}${item.active === false ? " · Desactivado" : ""}</b><small>${escapeHtml(item.description)}</small></div><span>${escapeHtml(item.category)}</span><strong>${Core.formatEuros(pvp)}</strong><span>${margin === null ? `<em>Pendiente</em>` : Core.formatEuros(cost)}</span><span>${margin === null ? "—" : Core.formatEuros(margin)}</span>${canManage ? `<button class="tpv-edit-button" type="button" data-edit-product="${item.id}">Editar</button>` : ""}</div>`; }).join("") || `<p class="tpv-gestion-empty">No se han encontrado artículos.</p>`}</div></section><aside class="tpv-management-note"><h2>Carta centralizada</h2><p>Añade, edita o desactiva artículos desde aquí sin abrir VS Code. Los cambios se aplican al TPV de camareros al sincronizar.</p><p>Desactivar un artículo lo oculta de la carta sin borrar las ventas ni las comandas anteriores.</p></aside></section>`;
+    const categories = (state.data.remoteCategories || []).filter((category) => category.active !== false);
+    const categoryOrder = categories.length ? `<section class="tpv-gestion-card"><header><div><h2>Orden de familias en la carta</h2><span>Este orden aparece en los filtros del TPV de camareros</span></div></header><div class="tpv-category-order">${categories.map((category, index) => `<article><span>${index + 1}</span><b>${escapeHtml(category.name)}</b>${canManage ? `<div><button class="tpv-edit-button" type="button" data-move-category="${category.id}" data-direction="up" ${index === 0 ? "disabled" : ""}>↑</button><button class="tpv-edit-button" type="button" data-move-category="${category.id}" data-direction="down" ${index === categories.length - 1 ? "disabled" : ""}>↓</button></div>` : ""}</article>`).join("")}</div></section>` : "";
+    return `<section class="tpv-gestion-content">${categoryOrder}<section class="tpv-gestion-card"><header><div><h2>Catálogo del restaurante</h2><span>${products.length} artículos · sincronizados en todos los TPV</span></div><div class="tpv-gestion-header-actions"><label class="tpv-search"><span>⌕</span><input type="search" value="${escapeHtml(state.search)}" placeholder="Buscar artículo" data-search-products></label>${canManage ? `<a class="tpv-action" href="tpv-articulo-nuevo">Nuevo artículo</a>` : ""}</div></header><div class="tpv-articles-table"><div class="tpv-articles-row is-heading"><span>Artículo</span><span>Familia</span><span>PVP</span><span>Coste compra</span><span>Margen</span><span></span></div>${products.map((item) => { const pvp = item.priceCents; const cost = state.data.costs?.[item.id]; const margin = Number.isFinite(Number(cost)) ? pvp - Number(cost) : null; return `<div class="tpv-articles-row ${item.active === false ? "is-inactive" : ""}"><div><b>${escapeHtml(item.name)}${item.active === false ? " · Desactivado" : ""}</b><small>${escapeHtml(item.description)}</small></div><span>${escapeHtml(item.category)}</span><strong>${Core.formatEuros(pvp)}</strong><span>${margin === null ? `<em>Pendiente</em>` : Core.formatEuros(cost)}</span><span>${margin === null ? "—" : Core.formatEuros(margin)}</span>${canManage ? `<button class="tpv-edit-button" type="button" data-edit-product="${item.id}">Editar</button>` : ""}</div>`; }).join("") || `<p class="tpv-gestion-empty">No se han encontrado artículos.</p>`}</div></section><aside class="tpv-management-note"><h2>Carta centralizada</h2><p>Sube o baja una familia para decidir qué filtros ven primero los camareros: por ejemplo, Bocatas, Cafés o Bebidas.</p><p>Los cambios se guardan en la base central y se aplican en todos los TPV conectados.</p></aside></section>`;
   }
   function renderLayoutMap(tables) {
     return `<section class="tpv-gestion-card tpv-layout-editor"><header><div><h2>Mapa de mesas</h2><span>Arrastra una mesa para cambiar su posición en el plano</span></div><span class="tpv-layout-editor__hint">Cambios guardados al soltar</span></header><div class="tpv-layout-map-scroll"><div class="tpv-layout-map" data-layout-map><div class="tpv-layout-map__bar">Barra</div><div class="tpv-layout-map__plants" aria-hidden="true">●<br>●<br>●<br>●</div>${tables.map((table) => `<button class="tpv-layout-table ${table.area === "wall" ? "is-wall" : ""}" type="button" style="--x:${table.x};--y:${table.y}" data-layout-table="${table.id}" aria-label="Mover mesa ${table.id}"><span></span><b>${table.id}</b></button>`).join("")}</div></div></section>`;
@@ -172,6 +176,24 @@
     if (button.dataset.openLogin !== undefined) { state.loginOpen = true; render(); return; }
     if (button.dataset.closeLogin !== undefined) { state.loginOpen = false; render(); return; }
     if (button.dataset.logout !== undefined) { Cloud.logout(); flash("Sesión cerrada. Los cambios vuelven a guardarse solo en este dispositivo."); render(); return; }
+    if (button.dataset.moveCategory) {
+      if (!isCloudConnected() || !["admin", "manager"].includes(session()?.user?.role)) { flash("Inicia sesión como administrador para ordenar familias."); render(); return; }
+      const categories = (state.data.remoteCategories || []).filter((category) => category.active !== false);
+      const index = categories.findIndex((category) => category.id === button.dataset.moveCategory);
+      const target = index + (button.dataset.direction === "up" ? -1 : 1);
+      if (index < 0 || target < 0 || target >= categories.length) return;
+      [categories[index], categories[target]] = [categories[target], categories[index]];
+      try {
+        const updatedCategories = await Cloud.reorderCategories(categories.map((category) => category.id));
+        Cloud.saveRemoteCategories(state.data, updatedCategories);
+        await refreshCloudProducts();
+        flash("Orden de familias actualizado en todos los TPV.");
+      } catch (error) {
+        flash(error.message);
+      }
+      render();
+      return;
+    }
     if (button.dataset.editProduct) { state.creatingProduct = false; state.editingId = button.dataset.editProduct; render(); return; }
     if (button.dataset.closeEdit !== undefined) { closeProductModal(); render(); return; }
     if (button.dataset.archiveProduct) {

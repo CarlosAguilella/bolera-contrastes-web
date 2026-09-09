@@ -50,9 +50,10 @@
     if (!session()) return;
     let products = await Cloud.loadProducts(true);
     if (!products.length && ["admin", "manager"].includes(session().user.role)) products = await Cloud.seedProducts();
-    const [tables, orders, kitchenOrders] = await Promise.all([Cloud.loadTables(), Cloud.loadOrders(), Cloud.loadKitchenOrders()]);
+    const [tables, orders, kitchenOrders, categories] = await Promise.all([Cloud.loadTables(), Cloud.loadOrders(), Cloud.loadKitchenOrders(), Cloud.loadCategories()]);
     Cloud.saveRemoteTables(state.data, tables);
     Cloud.saveRemoteProducts(state.data, products);
+    Cloud.saveRemoteCategories(state.data, categories);
     const existingTables = state.data.tables;
     const openTables = {};
     orders.forEach((order) => {

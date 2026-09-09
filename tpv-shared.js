@@ -108,6 +108,8 @@
       image: "",
       sendsToKitchen: Boolean(product.sends_to_kitchen),
       active: product.active !== false,
+      sortOrder: Number(product.sort_order || 0),
+      categorySortOrder: Number(product?.product_categories?.sort_order || 0),
     };
   }
 
@@ -120,7 +122,13 @@
     });
     const staticIds = new Set(products.map((item) => item.id));
     remote.forEach((item) => { if (!staticIds.has(item.id)) merged.push(item); });
-    return includeInactive ? merged : merged.filter((item) => item.active !== false);
+    const categoryOrders = new Map((data?.remoteCategories || []).map((category, index) => [categoryId(category.name), Number.isFinite(Number(category.sort_order)) ? Number(category.sort_order) : index]));
+    const visible = includeInactive ? merged : merged.filter((item) => item.active !== false);
+    return visible.map((item, index) => ({ item, index })).sort((first, second) => {
+      const firstCategory = categoryOrders.get(first.item.categoryId) ?? first.item.categorySortOrder ?? 9999;
+      const secondCategory = categoryOrders.get(second.item.categoryId) ?? second.item.categorySortOrder ?? 9999;
+      return firstCategory - secondCategory || Number(first.item.sortOrder || 0) - Number(second.item.sortOrder || 0) || first.index - second.index;
+    }).map(({ item }) => item);
   }
 
   function getProduct(id, data) {

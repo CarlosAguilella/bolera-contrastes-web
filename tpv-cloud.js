@@ -84,6 +84,11 @@
     return result.products || [];
   }
 
+  async function loadCategories() {
+    const result = await request("tpv-products?scope=categories");
+    return result.categories || [];
+  }
+
   async function seedProducts() {
     const result = await request("tpv-products", { method: "POST", body: JSON.stringify({ action: "seed" }) });
     return result.products || [];
@@ -101,6 +106,11 @@
 
   async function archiveProduct(id) {
     return request("tpv-products", { method: "DELETE", body: JSON.stringify({ id }) });
+  }
+
+  async function reorderCategories(categoryIds) {
+    const result = await request("tpv-products", { method: "PATCH", body: JSON.stringify({ action: "reorder_categories", categoryIds }) });
+    return result.categories || [];
   }
 
   async function loadCashSession(history = false) {
@@ -135,6 +145,12 @@
       if (product.cost_cents === null || product.cost_cents === undefined) delete data.costs[product.external_id];
       else data.costs[product.external_id] = Number(product.cost_cents);
     });
+    return data;
+  }
+
+  function saveRemoteCategories(data, categories) {
+    if (!data || !Array.isArray(categories)) return data;
+    data.remoteCategories = categories.map((category) => ({ ...category }));
     return data;
   }
 
@@ -200,6 +216,7 @@
     loadTables,
     login,
     loadCashSession,
+    loadCategories,
     loadKitchenOrders,
     loadOrders,
     loadProducts,
@@ -207,9 +224,11 @@
     loadStaff,
     logout,
     request,
+    reorderCategories,
     payOrder,
     saveOrder,
     saveRemoteProducts,
+    saveRemoteCategories,
     saveRemoteTables,
     tableId,
     openOrder,

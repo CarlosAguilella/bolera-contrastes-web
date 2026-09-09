@@ -66,10 +66,16 @@ async function listProducts(config, includeInactive = false) {
   const activeFilter = includeInactive ? "" : "active=is.true&";
   const products = await supabaseRequest(
     config,
-    `products?${activeFilter}select=id,external_id,name,variant,description,price_cents,cost_cents,sends_to_kitchen,active,sort_order,product_categories(name)&order=sort_order.asc`,
+    `products?${activeFilter}select=id,external_id,name,variant,description,price_cents,cost_cents,sends_to_kitchen,active,sort_order,product_categories(name,sort_order)&order=sort_order.asc`,
     { method: "GET" }
   );
   return Array.isArray(products) ? products : [];
 }
 
-module.exports = { getCatalog, listProducts, seedCatalog, sendsToKitchen };
+async function listCategories(config, includeInactive = false) {
+  const activeFilter = includeInactive ? "" : "active=is.true&";
+  const categories = await supabaseRequest(config, `product_categories?${activeFilter}select=id,name,sort_order,active&order=sort_order.asc,name.asc`, { method: "GET" });
+  return Array.isArray(categories) ? categories : [];
+}
+
+module.exports = { getCatalog, listCategories, listProducts, seedCatalog, sendsToKitchen };
