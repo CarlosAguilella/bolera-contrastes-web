@@ -586,3 +586,26 @@ button:disabled { cursor: not-allowed; opacity: .48; }
   .tpv-management-sidebar .tpv-brand { display: none; }
   .kitchen-screen-card button { min-height: 44px; }
 }
+
+@media (max-device-width: 700px), (hover: none) and (pointer: coarse) {
+  .tpv-app { grid-template-columns: 1fr; }
+  .tpv-sidebar { position: sticky; z-index: 20; top: 0; flex-direction: row; align-items: center; gap: 8px; padding: 8px; overflow-x: auto; }
+  .tpv-brand { flex: none; padding: 0 7px 0 1px; }
+  .tpv-brand__type, .tpv-nav__icon, .tpv-sidebar__bottom { display: none; }
+  .tpv-nav { display: flex; gap: 5px; }
+  .tpv-nav button { flex: none; width: auto; min-height: 38px; padding: 8px 10px; font-size: 12px; }
+  .tpv-main { padding: 18px 12px calc(30px + env(safe-area-inset-bottom)); }
+  .tpv-topbar { gap: 10px; margin-bottom: 20px; }
+  .tpv-topbar h1 { font-size: clamp(35px, 12vw, 44px); }
+  .tpv-topbar p { display: none; }
+  .tpv-order { grid-template-columns: 1fr; gap: 16px; }
+  .tpv-ticket { position: static; }
+  .tpv-catalog { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 8px; }
+  .tpv-product { grid-template-columns: 1fr; align-content: space-between; min-height: 0; aspect-ratio: 1; gap: 6px; padding: 9px; }
+  .tpv-product img { display: none; }
+  .tpv-product strong { display: -webkit-box; overflow: hidden; font-size: 13px; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+  .tpv-product__family { margin-top: 3px; font-size: 9px !important; }
+  .tpv-product__bottom { display: grid; gap: 5px; }
+  .tpv-product__price { font-size: 17px !important; line-height: 1; }
+  .tpv-add { width: 100%; min-width: 0; min-height: 33px; padding: 6px; border-color: #111; color: #fff; background: #111; font-size: 11px; }
+}
