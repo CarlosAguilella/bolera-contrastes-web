@@ -97,7 +97,7 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .tpv-product:hover { border-color: var(--tpv-ink); }
 .tpv-product strong, .tpv-product span, .tpv-product small { display: block; }
 .tpv-product strong { font-size: 15px; line-height: 1.2; }
-.tpv-product__family { margin-top: 5px; color: var(--tpv-green) !important; font-size: 11px !important; font-weight: 800; }
+.tpv-product__family { display: none !important; }
 .tpv-product small { margin-top: 3px; color: var(--tpv-muted); font-size: 11px; }
 .tpv-product__bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .tpv-product__price { font-family: var(--tpv-display); color: var(--tpv-ink) !important; font-size: 21px !important; }
