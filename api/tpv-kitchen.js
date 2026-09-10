@@ -5,7 +5,7 @@ module.exports = async function handler(req, res) {
     const config = requireConfig(getConfig());
     requireRoles(req);
     if (req.method === "GET") {
-      const orders = await supabaseRequest(config, "kitchen_orders?status=in.(pending,preparing,ready)&select=*&order=created_at.asc", { method: "GET" });
+      const orders = await supabaseRequest(config, "kitchen_orders?status=in.(pending,paid,preparing,ready)&select=*&order=created_at.asc", { method: "GET" });
       return res.status(200).json({ ok: true, orders: Array.isArray(orders) ? orders : [] });
     }
     if (req.method === "PATCH") {

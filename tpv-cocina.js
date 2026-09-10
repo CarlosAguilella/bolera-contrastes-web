@@ -38,9 +38,14 @@
     const previousIds = new Set(state.orders.map((order) => order.id));
     state.orders = orders.map((order) => ({
       id: order.order_id,
-      status: order.status,
+      status: order.status === "paid" ? "pending" : order.status,
       createdAt: order.created_at,
       tableNumber: String(order.raw_payload?.tableNumber || String(order.delivery_detail || "").replace(/\D/g, "") || "—"),
+      online: order.source !== "tpv",
+      deliveryMethod: order.delivery_method,
+      deliveryDetail: order.delivery_detail,
+      customerName: order.customer_name,
+      customerPhone: order.customer_phone,
       lines: (order.items || []).map((line) => ({ productId: byDatabaseId[line.productId] || line.productId, name: line.name, qty: Number(line.qty || 0), variant: line.variant })).filter((line) => line.qty > 0),
     }));
     if (state.loaded && state.orders.some((order) => !previousIds.has(order.id) && order.status === "pending")) flash("Nueva comanda en cocina.", "alert");
@@ -68,7 +73,8 @@
         ? ["ready", "Marcar como lista"]
         : ["completed", "Entregada"];
     const backAction = order.status === "preparing" ? ["pending", "Volver a pendientes"] : order.status === "ready" ? ["preparing", "Volver a preparación"] : null;
-    return `<article class="kitchen-screen-card ${isLate(order) ? "is-late" : ""}"><header><div><span>Mesa</span><strong>${escapeHtml(order.tableNumber)}</strong></div><b>${age(order.createdAt)}</b></header><ul>${order.lines.map((line) => `<li><b>${line.qty}×</b><span>${escapeHtml(productName(line))}${line.variant ? `<small>${escapeHtml(line.variant)}</small>` : ""}</span></li>`).join("")}</ul>${canManageKitchen() ? `<div class="kitchen-screen-card__actions">${backAction ? `<button type="button" class="is-secondary" data-kitchen-status="${backAction[0]}" data-kitchen-order="${escapeHtml(order.id)}">${backAction[1]}</button>` : ""}<button type="button" data-kitchen-status="${action[0]}" data-kitchen-order="${escapeHtml(order.id)}">${action[1]}</button></div>` : `<p class="kitchen-screen-card__readonly">Solo cocina o administración puede cambiar el estado.</p>`}</article>`;
+    const onlineDetails = order.online ? `<div class="kitchen-screen-online"><b>Online · ${order.deliveryMethod === "delivery" ? "Domicilio" : "Recogida"}</b><span>${escapeHtml(order.customerName || "Cliente web")}</span>${order.customerPhone ? `<a href="tel:${escapeHtml(order.customerPhone)}">${escapeHtml(order.customerPhone)}</a>` : ""}<small>${escapeHtml(order.deliveryDetail || "Lo antes posible")}</small></div>` : "";
+    return `<article class="kitchen-screen-card ${order.online ? "is-online" : ""} ${isLate(order) ? "is-late" : ""}"><header><div><span>${order.online ? "PEDIDO WEB" : "MESA"}</span><strong>${escapeHtml(order.online ? order.customerName || "Online" : order.tableNumber)}</strong></div><b>${age(order.createdAt)}</b></header>${onlineDetails}<ul>${order.lines.map((line) => `<li><b>${line.qty}×</b><span>${escapeHtml(productName(line))}${line.variant ? `<small>${escapeHtml(line.variant)}</small>` : ""}</span></li>`).join("")}</ul>${canManageKitchen() ? `<div class="kitchen-screen-card__actions">${backAction ? `<button type="button" class="is-secondary" data-kitchen-status="${backAction[0]}" data-kitchen-order="${escapeHtml(order.id)}">${backAction[1]}</button>` : ""}<button type="button" data-kitchen-status="${action[0]}" data-kitchen-order="${escapeHtml(order.id)}">${action[1]}</button></div>` : `<p class="kitchen-screen-card__readonly">Solo cocina o administración puede cambiar el estado.</p>`}</article>`;
   }
   function column(status, title) {
     const orders = state.orders.filter((order) => order.status === status);

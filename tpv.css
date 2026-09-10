@@ -452,6 +452,7 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .kitchen-screen-column.is-ready > header span { color: #0c3d24; background: #71d292; }
 .kitchen-screen-card { margin-bottom: 12px; padding: 18px; border: 1px solid #454545; border-radius: 13px; background: #fbfbf8; color: #191919; box-shadow: 0 8px 20px rgba(0,0,0,.18); }
 .kitchen-screen-card.is-late { border: 3px solid #df563d; }
+.kitchen-screen-card.is-online { border-color: #5684c9; }
 .kitchen-screen-card header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 13px; border-bottom: 1px solid #e2e2de; }
 .kitchen-screen-card header span, .kitchen-screen-card header strong { display: block; }
 .kitchen-screen-card header span { color: #777773; font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
@@ -462,6 +463,11 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .kitchen-screen-card li { display: grid; grid-template-columns: 36px 1fr; gap: 8px; align-items: start; font-size: 19px; line-height: 1.08; }
 .kitchen-screen-card li > b { color: #277443; font-size: 18px; }
 .kitchen-screen-card li small { display: block; margin-top: 4px; color: #777773; font-size: 12px; }
+.kitchen-screen-online { display: grid; gap: 3px; margin: 13px 0 0; padding: 10px; border-radius: 9px; color: #24436c; background: #edf4ff; font-size: 12px; }
+.kitchen-screen-online b { font-size: 11px; letter-spacing: .05em; text-transform: uppercase; }
+.kitchen-screen-online span { font-size: 15px; font-weight: 800; }
+.kitchen-screen-online a { width: fit-content; color: inherit; font-weight: 700; }
+.kitchen-screen-online small { color: #4f5f78; font-size: 12px; line-height: 1.35; }
 .kitchen-screen-card button { width: 100%; min-height: 48px; border: 0; border-radius: 9px; color: #fff; background: #151515; font-size: 14px; font-weight: 800; cursor: pointer; }
 .kitchen-screen-card__actions { display: grid; gap: 8px; }
 .kitchen-screen-card button.is-secondary { border: 1px solid #cfcfca; color: #333; background: #f6f6f2; }
