@@ -5,14 +5,14 @@ module.exports = async function handler(req, res) {
     const config = requireConfig(getConfig());
     requireRoles(req);
     if (req.method === "GET") {
-      const orders = await supabaseRequest(config, "kitchen_orders?status=in.(pending,paid,preparing,ready)&select=*&order=created_at.asc", { method: "GET" });
+      const orders = await supabaseRequest(config, "kitchen_orders?status=in.(pending_confirmation,pending,paid,preparing,ready)&select=*&order=created_at.asc", { method: "GET" });
       return res.status(200).json({ ok: true, orders: Array.isArray(orders) ? orders : [] });
     }
     if (req.method === "PATCH") {
       requireRoles(req, ["admin", "manager", "kitchen"]);
       const body = await readRequestBody(req);
       const status = String(body.status || "").trim();
-      if (!["pending", "preparing", "ready", "completed", "cancelled"].includes(status)) {
+      if (!["pending_confirmation", "pending", "preparing", "ready", "completed", "cancelled"].includes(status)) {
         return res.status(400).json({ ok: false, error: "El estado de cocina no es válido." });
       }
       const rows = await supabaseRequest(config, `kitchen_orders?order_id=eq.${encodeURIComponent(String(body.orderId || "").trim())}`, {

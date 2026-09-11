@@ -11,15 +11,15 @@
   const SERVICE_PROMISES = [
     { label: "Recogida", value: "20–30 min" },
     { label: "Domicilio", value: "Onda y alrededores" },
-    { label: "Pago", value: "Tarjeta o Bizum" },
-    { label: "Aviso cocina", value: "Tras pago confirmado" },
+    { label: "Pago", value: "Al confirmar" },
+    { label: "Aviso cocina", value: "Al enviar pedido" },
   ];
   const PAYMENT_METHODS = [
     {
       id: "redsys",
-      label: "Tarjeta o Bizum",
-      detail: "Pago seguro con Redsys",
-      badge: "Recomendado",
+      label: "Confirmar en el local",
+      detail: "El pedido llega al local para confirmarlo",
+      badge: "Disponible",
     },
   ];
 

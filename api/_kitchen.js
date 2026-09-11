@@ -126,7 +126,7 @@ function buildKitchenOrderFromPayment(payload, status = "paid") {
 function buildKitchenOrderFromCreatedOrder(order, payment) {
   return {
     order_id: cleanText(order.orderId, 40),
-    status: payment?.provider === "demo" ? "pending_payment" : "created",
+    status: payment?.provider === "demo" ? "pending_confirmation" : "created",
     source: cleanText(payment?.provider || "redsys", 40),
     payment_status: payment?.provider === "demo" ? "pending" : "created",
     amount_cents: Number(order.totalCents || 0),
@@ -212,7 +212,7 @@ async function updateKitchenOrder(config, orderId, status) {
     throw error;
   }
 
-  const allowed = new Set(["paid", "accepted", "preparing", "ready", "completed", "cancelled", "refunded", "pending_payment"]);
+  const allowed = new Set(["paid", "accepted", "pending_confirmation", "pending", "preparing", "ready", "completed", "cancelled", "refunded", "pending_payment"]);
   const nextStatus = cleanText(status, 40);
   if (!allowed.has(nextStatus)) {
     const error = new Error("Estado de pedido no válido.");

@@ -1,6 +1,8 @@
 (function () {
   const statusLabels = {
     pending_payment: "Pendiente / no cobrado",
+    pending_confirmation: "Por confirmar",
+    pending: "Pendiente",
     paid: "Pagado",
     accepted: "Aceptado",
     preparing: "Haciendo",
@@ -82,6 +84,18 @@
 
   function getOrderActions(status, isPending) {
     if (isPending) return [{ status: "cancelled", label: "Archivar" }];
+    if (status === "pending_confirmation") {
+      return [
+        { status: "pending", label: "Confirmar" },
+        { status: "cancelled", label: "Cancelar" },
+      ];
+    }
+    if (status === "pending") {
+      return [
+        { status: "preparing", label: "Haciendo" },
+        { status: "cancelled", label: "Cancelar" },
+      ];
+    }
     if (status === "paid" || status === "created") {
       return [
         { status: "accepted", label: "Aceptar" },

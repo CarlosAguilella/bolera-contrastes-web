@@ -443,7 +443,7 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .kitchen-screen-top__actions { display: flex; align-items: center; gap: 10px; }
 .kitchen-screen-top .tpv-live { color: #d2ead8; background: #24442d; }
 .kitchen-screen-top .tpv-action.is-secondary { border-color: #505050; color: #f4f4f1; background: transparent; }
-.kitchen-screen-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); min-height: calc(100vh - 94px); gap: 16px; padding: 16px; }
+.kitchen-screen-board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); min-height: calc(100vh - 94px); gap: 16px; padding: 16px; }
 .kitchen-screen-column { padding: 14px; border-radius: 16px; background: #242424; }
 .kitchen-screen-column > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 2px 4px 15px; }
 .kitchen-screen-column h2 { margin: 0; font-size: 18px; }
