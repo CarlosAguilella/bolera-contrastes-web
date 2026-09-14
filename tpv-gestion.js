@@ -4,7 +4,7 @@
   const root = document.getElementById("tpv-gestion-root");
   if (!Core || !root) return;
 
-  const state = { tab: "ventas", search: "", staff: [], cashSession: null, cashHistory: [], editingId: null, creatingProduct: window.location.hash === "#nuevo-articulo", editingTableId: null, deletingTableId: null, loginOpen: false, loginUsername: "carlos", data: Core.loadData(), toast: null };
+  const state = { tab: "ventas", search: "", staff: [], cashSession: null, cashHistory: [], shiftHistory: [], editingId: null, creatingProduct: window.location.hash === "#nuevo-articulo", editingTableId: null, deletingTableId: null, loginOpen: false, loginUsername: "carlos", data: Core.loadData(), toast: null };
   let toastTimer = null;
   let draggedTable = null;
 
@@ -57,6 +57,10 @@
       state.cashSession = null;
       state.cashHistory = [];
     }
+  }
+  async function refreshCloudShiftHistory() {
+    if (!isCloudConnected() || !["admin", "manager"].includes(session().user.role)) return;
+    try { state.shiftHistory = await Cloud.loadShift(true); } catch (error) { state.shiftHistory = []; }
   }
   function flash(message) {
     state.toast = message;
@@ -127,11 +131,20 @@
     return `<section class="tpv-gestion-content">${renderLayoutMap(tables)}<section class="tpv-gestion-card"><header><div><h2>Mesas configuradas</h2><span>${tables.length} mesas · los números son únicos</span></div><form class="tpv-table-add" data-table-add-form><label>Nueva mesa<input name="tableNumber" inputmode="numeric" maxlength="3" placeholder="Ej. 28" required></label><label>Zona<select name="area"><option value="sala">Sala</option><option value="wall">Pared</option></select></label><button class="tpv-action" type="submit">Añadir mesa</button></form></header><div class="tpv-table-settings"><div class="tpv-table-settings__head"><span>Número</span><span>Zona</span><span>Estado</span><span></span></div>${tables.map((table) => `<div class="tpv-table-settings__row"><strong>Mesa ${table.id}</strong><span class="tpv-zone">${table.area === "wall" ? "Pared" : "Sala"}</span><span class="tpv-table-state ${isTableOccupied(table.id) ? "is-open" : ""}">${isTableOccupied(table.id) ? "Comanda activa" : "Libre"}</span><div><button class="tpv-edit-button" type="button" data-edit-table="${table.id}">Editar</button><button class="tpv-delete-button" type="button" data-delete-table="${table.id}" ${isTableOccupied(table.id) ? "disabled title=\"Cierra la comanda antes de eliminarla\"" : ""}>Quitar</button></div></div>`).join("")}</div></section><aside class="tpv-management-note"><h2>Cómo funciona</h2><p>Al cambiar un número se mantiene su comanda, pedidos de cocina y ventas asociadas. No se permite repetir ningún número.</p><p>Por seguridad, una mesa con comanda o pedido de cocina activo no puede eliminarse.</p><p>Puedes arrastrar cada mesa en el mapa superior para colocarla en la zona real del local.</p></aside></section>`;
   }
   function roleLabel(role) { return ({ admin: "Administrador", manager: "Gestor", waiter: "Camarero/a", kitchen: "Cocina" })[role] || role; }
+  function shiftDuration(shift) {
+    const end = shift.ended_at ? new Date(shift.ended_at).getTime() : Date.now();
+    const minutes = Math.max(0, Math.floor((end - new Date(shift.started_at).getTime()) / 60000));
+    return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")} min`;
+  }
+  function shiftStartedAt(shift) {
+    return new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(shift.started_at));
+  }
   function renderStaff() {
     const user = session()?.user;
     if (!user) return `<section class="tpv-gestion-content"><section class="tpv-gestion-card"><h2>Acceso requerido</h2><p class="tpv-gestion-empty">Inicia sesión como administrador para gestionar al personal.</p></section></section>`;
     const canManage = user.role === "admin";
-    return `<section class="tpv-gestion-content"><section class="tpv-gestion-card"><header><div><h2>Accesos del equipo</h2><span>Los camareros entran solo seleccionando su nombre</span></div></header>${canManage ? `<form class="tpv-staff-form" data-staff-form><label>Nombre<input name="displayName" placeholder="Matías o Lucía" required></label><label>Usuario<input name="username" pattern="[a-z0-9._-]{3,40}" placeholder="matias" required></label><label>Rol<select name="role"><option value="waiter">Camarero/a</option><option value="kitchen">Cocina</option><option value="manager">Gestor</option><option value="admin">Administrador</option></select></label><label>PIN <small>solo gestión/cocina</small><input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,10}" minlength="4" maxlength="10"></label><button class="tpv-action" type="submit">Crear acceso</button></form>` : `<p class="tpv-gestion-empty">Tu rol permite ver el personal, pero no crear ni cambiar PIN.</p>`}<div class="tpv-staff-list">${state.staff.length ? state.staff.map((staff) => `<article><div><b>${escapeHtml(staff.displayName)}</b><small>@${escapeHtml(staff.username)} · ${roleLabel(staff.role)}</small></div><span class="tpv-table-state ${staff.active ? "" : "is-open"}">${staff.active ? "Activo" : "Desactivado"}</span></article>`).join("") : `<p class="tpv-gestion-empty">Cargando personal…</p>`}</div></section><aside class="tpv-management-note"><h2>Los accesos actuales</h2><p>Crea los perfiles de <strong>Matías</strong> y <strong>Lucía</strong> con rol Camarero/a: no necesitan PIN.</p><p>El perfil Administrador conserva acceso completo y requiere PIN.</p></aside></section>`;
+    const shifts = state.shiftHistory.slice(0, 12);
+    return `<section class="tpv-gestion-content"><section class="tpv-gestion-card"><header><div><h2>Accesos del equipo</h2><span>Los camareros entran solo seleccionando su nombre</span></div></header>${canManage ? `<form class="tpv-staff-form" data-staff-form><label>Nombre<input name="displayName" placeholder="Matías o Lucía" required></label><label>Usuario<input name="username" pattern="[a-z0-9._-]{3,40}" placeholder="matias" required></label><label>Rol<select name="role"><option value="waiter">Camarero/a</option><option value="kitchen">Cocina</option><option value="manager">Gestor</option><option value="admin">Administrador</option></select></label><label>PIN <small>solo gestión/cocina</small><input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,10}" minlength="4" maxlength="10"></label><button class="tpv-action" type="submit">Crear acceso</button></form>` : `<p class="tpv-gestion-empty">Tu rol permite ver el personal, pero no crear ni cambiar PIN.</p>`}<div class="tpv-staff-list">${state.staff.length ? state.staff.map((staff) => `<article><div><b>${escapeHtml(staff.displayName)}</b><small>@${escapeHtml(staff.username)} · ${roleLabel(staff.role)}</small></div><span class="tpv-table-state ${staff.active ? "" : "is-open"}">${staff.active ? "Activo" : "Desactivado"}</span></article>`).join("") : `<p class="tpv-gestion-empty">Cargando personal…</p>`}</div><div class="tpv-shift-history"><h3>Últimas jornadas</h3><span>Entrada, salida y tiempo total por empleado.</span>${shifts.length ? shifts.map((shift) => `<article><div><b>${escapeHtml(shift.staff_users?.display_name || "Empleado")}</b><small>${roleLabel(shift.staff_users?.role || "")} · entrada ${shiftStartedAt(shift)}</small></div><div><strong>${shiftDuration(shift)}</strong><em>${shift.ended_at ? "Finalizada" : "En curso"}</em></div></article>`).join("") : `<p class="tpv-gestion-empty">Aún no hay jornadas registradas.</p>`}</div></section><aside class="tpv-management-note"><h2>Control de jornada</h2><p>Cada camarero y cocina pulsa <strong>He llegado</strong> al empezar y <strong>Finalizar jornada</strong> al salir desde su pantalla.</p><p>Las últimas jornadas quedan aquí para revisar el tiempo trabajado.</p></aside></section>`;
   }
   function loyaltyCustomers() { return Array.isArray(state.data.loyaltyCustomers) ? state.data.loyaltyCustomers : []; }
   function renderLoyalty() {
@@ -189,7 +202,7 @@
     if (action) { event.preventDefault(); state.creatingProduct = true; render(); return; }
     const button = event.target.closest("button");
     if (!button) return;
-    if (button.dataset.tab) { state.tab = button.dataset.tab; if (state.tab === "personal") { refreshCloudStaff().then(render).catch((error) => { flash(error.message); render(); }); } if (state.tab === "caja") { refreshCloudCash().then(render).catch((error) => { flash(error.message); render(); }); } render(); return; }
+    if (button.dataset.tab) { state.tab = button.dataset.tab; if (state.tab === "personal") { Promise.all([refreshCloudStaff(), refreshCloudShiftHistory()]).then(render).catch((error) => { flash(error.message); render(); }); } if (state.tab === "caja") { refreshCloudCash().then(render).catch((error) => { flash(error.message); render(); }); } render(); return; }
     if (button.dataset.loginUser) { state.loginUsername = button.dataset.loginUser; render(); return; }
     if (button.dataset.openLogin !== undefined) { state.loginOpen = true; render(); return; }
     if (button.dataset.closeLogin !== undefined) { state.loginOpen = false; render(); return; }
@@ -315,6 +328,7 @@
           await refreshCloudSales();
           await refreshCloudStaff();
           await refreshCloudCash();
+          await refreshCloudShiftHistory();
           state.loginOpen = false;
           flash("Sesión iniciada. Las mesas ya usan la base central.");
           render();
@@ -419,7 +433,7 @@
     render();
   });
   if (isCloudConnected()) {
-    Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales(), refreshCloudStaff(), refreshCloudCash()]).then(render).catch(() => {});
-    window.setInterval(() => Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales(), refreshCloudCash()]).then(render).catch(() => {}), 15000);
+    Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales(), refreshCloudStaff(), refreshCloudCash(), refreshCloudShiftHistory()]).then(render).catch(() => {});
+    window.setInterval(() => Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales(), refreshCloudCash(), refreshCloudShiftHistory()]).then(render).catch(() => {}), 15000);
   }
 })();

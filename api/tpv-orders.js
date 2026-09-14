@@ -120,6 +120,11 @@ async function cashSummary(config, cashSession) {
   return { ...cashSession, summary: { ...sales, movementCents, expectedCashCents: Number(cashSession.opening_float_cents || 0) + sales.cashSalesCents + movementCents, movements: Array.isArray(movements) ? movements : [] } };
 }
 
+async function openStaffShift(config, staffUserId) {
+  const shifts = await supabaseRequest(config, `staff_shifts?staff_user_id=eq.${encodeURIComponent(staffUserId)}&ended_at=is.null&select=*&order=started_at.desc&limit=1`, { method: "GET" });
+  return Array.isArray(shifts) ? shifts[0] || null : null;
+}
+
 module.exports = async function handler(req, res) {
   try {
     const config = requireConfig(getConfig());
@@ -128,6 +133,12 @@ module.exports = async function handler(req, res) {
     if (req.method === "GET") {
       const url = new URL(req.url || "/", `https://${req.headers.host || "localhost"}`);
       const scope = url.searchParams.get("scope");
+      if (scope === "shift") return res.status(200).json({ ok: true, shift: await openStaffShift(config, session.sub) });
+      if (scope === "shift_history") {
+        requireRoles(req, CASH_MANAGER_ROLES);
+        const shifts = await supabaseRequest(config, "staff_shifts?select=*,staff_users(display_name,role)&order=started_at.desc&limit=100", { method: "GET" });
+        return res.status(200).json({ ok: true, shifts: Array.isArray(shifts) ? shifts : [] });
+      }
       if (scope === "cash") return res.status(200).json({ ok: true, session: await cashSummary(config, await openCashSession(config)) });
       if (scope === "cash_history") {
         requireRoles(req, CASH_MANAGER_ROLES);
@@ -145,6 +156,14 @@ module.exports = async function handler(req, res) {
     }
 
     const body = await readRequestBody(req);
+    if (req.method === "POST" && body.action === "shift_start") {
+      const currentShift = await openStaffShift(config, session.sub);
+      if (currentShift) return res.status(200).json({ ok: true, shift: currentShift, existing: true });
+      const rows = await supabaseRequest(config, "staff_shifts", { method: "POST", body: JSON.stringify({ staff_user_id: session.sub }) });
+      const shift = Array.isArray(rows) ? rows[0] : rows;
+      await audit(config, session.sub, "staff_shifts", shift.id, "start", {});
+      return res.status(201).json({ ok: true, shift });
+    }
     if (req.method === "POST" && body.action === "cash_open") {
       const manager = requireRoles(req, CASH_MANAGER_ROLES);
       if (await openCashSession(config)) return res.status(409).json({ ok: false, error: "Ya hay una caja abierta." });
@@ -187,6 +206,14 @@ module.exports = async function handler(req, res) {
       const closedCashSession = Array.isArray(rows) ? rows[0] : rows;
       await audit(config, manager.sub, "cash_sessions", cashSession.id, "close", { expectedCashCents, countedCashCents, differenceCents });
       return res.status(200).json({ ok: true, session: closedCashSession });
+    }
+    if (req.method === "PATCH" && body.action === "shift_end") {
+      const currentShift = await openStaffShift(config, session.sub);
+      if (!currentShift) return res.status(409).json({ ok: false, error: "No hay una jornada iniciada." });
+      const rows = await supabaseRequest(config, `staff_shifts?id=eq.${encodeURIComponent(currentShift.id)}`, { method: "PATCH", body: JSON.stringify({ ended_at: new Date().toISOString() }) });
+      const shift = Array.isArray(rows) ? rows[0] : rows;
+      await audit(config, session.sub, "staff_shifts", currentShift.id, "end", {});
+      return res.status(200).json({ ok: true, shift });
     }
     if (req.method === "POST") {
       const table = await findTable(config, body.tableNumber);

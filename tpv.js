@@ -4,7 +4,7 @@
   const root = document.getElementById("tpv-root");
   if (!Core || !root) return;
 
-  const state = { page: "sala", selectedTableId: null, category: "all", modal: null, loginUsername: "carlos", toast: null, cashSession: null, data: Core.loadData() };
+  const state = { page: "sala", selectedTableId: null, category: "all", modal: null, loginUsername: "carlos", toast: null, cashSession: null, shift: null, data: Core.loadData() };
   let toastTimer = null;
   const orderSyncQueues = new Map();
 
@@ -21,6 +21,15 @@
   async function refreshCashSession() {
     if (!isCloudConnected()) return;
     try { state.cashSession = await Cloud.loadCashSession(); } catch (error) { state.cashSession = null; }
+  }
+  async function refreshShift() {
+    if (!isCloudConnected()) return;
+    try { state.shift = await Cloud.loadShift(); } catch (error) { state.shift = null; }
+  }
+  function shiftDuration() {
+    if (!state.shift?.started_at) return "Sin iniciar";
+    const minutes = Math.max(0, Math.floor((Date.now() - new Date(state.shift.started_at).getTime()) / 60000));
+    return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")} min`;
   }
   function productExternalIds() {
     return Object.fromEntries(Object.entries(state.data.cloudProductIds || {}).map(([externalId, id]) => [id, externalId]));
@@ -229,7 +238,7 @@
   function sidebar() {
     const nav = [["sala", "▦", "Sala"], ["cocina", "♨", "Cocina"], ["caja", "€", "Caja"]];
     const user = session()?.user;
-    return `<aside class="tpv-sidebar"><a class="tpv-brand" href="index.html" aria-label="Volver a Bolera Contrastes"><span class="tpv-brand__mark">C</span><span class="tpv-brand__type"><strong>Contrastes</strong><small>TPV camarero</small></span></a><nav class="tpv-nav" aria-label="Navegación TPV">${nav.map(([page, icon, label]) => `<button type="button" class="${state.page === page || (page === "sala" && state.page === "comanda") ? "is-active" : ""}" data-nav="${page}"><span class="tpv-nav__icon">${icon}</span>${label}</button>`).join("")}</nav><div class="tpv-sidebar__bottom"><div class="tpv-user"><span class="tpv-user__avatar">${user ? escapeHtml(user.displayName.slice(0, 2).toUpperCase()) : "--"}</span><span>${user ? escapeHtml(user.displayName) : "Sin sesión"}</span></div><button type="button" class="tpv-reset" data-open-login="true">${user ? "Sesión iniciada" : "Acceder al TPV"}</button>${user ? `<button type="button" class="tpv-reset" data-logout="true">Cerrar sesión</button>` : ""}<button type="button" class="tpv-reset" data-reset-demo="true">Restaurar demo</button></div></aside>`;
+    return `<aside class="tpv-sidebar"><a class="tpv-brand" href="index.html" aria-label="Volver a Bolera Contrastes"><span class="tpv-brand__mark">C</span><span class="tpv-brand__type"><strong>Contrastes</strong><small>TPV camarero</small></span></a><nav class="tpv-nav" aria-label="Navegación TPV">${nav.map(([page, icon, label]) => `<button type="button" class="${state.page === page || (page === "sala" && state.page === "comanda") ? "is-active" : ""}" data-nav="${page}"><span class="tpv-nav__icon">${icon}</span>${label}</button>`).join("")}</nav><div class="tpv-sidebar__bottom"><div class="tpv-user"><span class="tpv-user__avatar">${user ? escapeHtml(user.displayName.slice(0, 2).toUpperCase()) : "--"}</span><span>${user ? escapeHtml(user.displayName) : "Sin sesión"}</span></div>${user ? `<div class="tpv-shift"><span>Jornada · ${shiftDuration()}</span><button type="button" data-shift-action="${state.shift ? "end" : "start"}">${state.shift ? "Finalizar jornada" : "He llegado"}</button></div>` : ""}<button type="button" class="tpv-reset" data-open-login="true">${user ? "Sesión iniciada" : "Acceder al TPV"}</button>${user ? `<button type="button" class="tpv-reset" data-logout="true">Cerrar sesión</button>` : ""}<button type="button" class="tpv-reset" data-reset-demo="true">Restaurar demo</button></div></aside>`;
   }
   function topbar(title, subtitle) { return `<header class="tpv-topbar"><div><h1>${title}</h1><p>${subtitle}</p></div><span class="tpv-live">${session() ? "Mesas sincronizadas" : "Sistema local activo"}</span></header>`; }
   function renderFloor() {
@@ -300,6 +309,13 @@
     if (!button) return;
     if (button.dataset.loginUser) { state.loginUsername = button.dataset.loginUser; render(); return; }
     if (button.dataset.openLogin !== undefined) { state.modal = "login"; render(); return; }
+    if (button.dataset.shiftAction) {
+      const starting = button.dataset.shiftAction === "start";
+      (starting ? Cloud.startShift() : Cloud.endShift())
+        .then((shift) => { state.shift = starting ? shift : null; flash(starting ? "Jornada iniciada." : "Jornada finalizada.", "success"); render(); })
+        .catch((error) => { flash(error.message); render(); });
+      return;
+    }
     if (button.dataset.logout !== undefined) { Cloud.logout(); flash("Sesión cerrada."); render(); return; }
     if (button.dataset.nav === "cocina") { window.location.href = "tpv-cocina.html"; return; }
     if (button.dataset.nav) { state.page = button.dataset.nav; state.selectedTableId = null; state.modal = null; render(); return; }
@@ -323,7 +339,7 @@
       const form = new FormData(event.target);
       Cloud.login(state.loginUsername, String(form.get("pin") || ""))
         .then(async () => {
-          await Promise.all([refreshCloudState(), refreshCashSession()]);
+          await Promise.all([refreshCloudState(), refreshCashSession(), refreshShift()]);
           state.modal = null;
           flash("Sesión iniciada. Las mesas están sincronizadas.", "success");
           render();
@@ -357,7 +373,7 @@
   });
   render();
   if (session()) {
-    Promise.all([refreshCloudState(), refreshCashSession()]).then(render).catch(() => {});
-    window.setInterval(() => Promise.all([refreshCloudState(), refreshCashSession()]).then(render).catch(() => {}), 15000);
+    Promise.all([refreshCloudState(), refreshCashSession(), refreshShift()]).then(render).catch(() => {});
+    window.setInterval(() => Promise.all([refreshCloudState(), refreshCashSession(), refreshShift()]).then(render).catch(() => {}), 15000);
   }
 })();

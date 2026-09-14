@@ -4,7 +4,7 @@
   const root = document.getElementById("tpv-cocina-root");
   if (!Core || !Cloud || !root) return;
 
-  const state = { data: Core.loadData(), orders: [], loginOpen: false, loginUsername: "cocina", toast: null, loaded: false };
+  const state = { data: Core.loadData(), orders: [], loginOpen: false, loginUsername: "cocina", toast: null, loaded: false, shift: null };
   let toastTimer = null;
 
   function escapeHtml(value) {
@@ -22,6 +22,11 @@
     return minutes < 1 ? "Ahora" : `${minutes} min`;
   }
   function isLate(order) { return Date.now() - new Date(order.createdAt).getTime() > 20 * 60 * 1000; }
+  function shiftDuration() {
+    if (!state.shift?.started_at) return "Sin iniciar";
+    const minutes = Math.max(0, Math.floor((Date.now() - new Date(state.shift.started_at).getTime()) / 60000));
+    return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")} min`;
+  }
   function productIdsByDatabaseId() {
     return Object.fromEntries(Object.entries(state.data.cloudProductIds || {}).map(([externalId, databaseId]) => [databaseId, externalId]));
   }
@@ -50,6 +55,7 @@
     }));
     if (state.loaded && state.orders.some((order) => !previousIds.has(order.id) && order.status === "pending")) flash("Nueva comanda en cocina.", "alert");
     state.loaded = true;
+    try { state.shift = await Cloud.loadShift(); } catch (error) { state.shift = null; }
   }
   async function changeStatus(orderId, status) {
     try {
@@ -84,7 +90,7 @@
   }
   function render() {
     const user = session()?.user;
-    root.innerHTML = `<div class="kitchen-screen"><header class="kitchen-screen-top"><a href="tpv.html" class="tpv-brand"><span class="tpv-brand__mark">C</span><span class="tpv-brand__type"><strong>Contrastes</strong><small>Pantalla de cocina</small></span></a><div class="kitchen-screen-top__title"><span>Producción</span><h1>Cocina</h1></div><div class="kitchen-screen-top__actions"><span class="tpv-live">${user ? `${escapeHtml(user.displayName)} · ${state.orders.length} activas` : "Sin acceso"}</span>${user ? `<button type="button" class="tpv-action is-secondary" data-logout>Salir</button>` : `<button type="button" class="tpv-action" data-open-login>Acceder</button>`}</div></header>${user ? `<main class="kitchen-screen-board">${column("pending_confirmation", "Por confirmar")}${column("pending", "Pendientes")}${column("preparing", "En preparación")}${column("ready", "Listas")}</main>` : `<main class="kitchen-screen-welcome"><h2>Pantalla exclusiva de cocina</h2><p>Las comandas llegan aquí al enviarlas desde una mesa o desde la web.</p><button class="tpv-action" type="button" data-open-login>Acceder a cocina</button></main>`}${loginModal()}${state.toast ? `<div class="tpv-toast ${state.toast.tone ? `is-${state.toast.tone}` : ""}">${escapeHtml(state.toast.message)}</div>` : ""}</div>`;
+    root.innerHTML = `<div class="kitchen-screen"><header class="kitchen-screen-top"><a href="tpv.html" class="tpv-brand"><span class="tpv-brand__mark">C</span><span class="tpv-brand__type"><strong>Contrastes</strong><small>Pantalla de cocina</small></span></a><div class="kitchen-screen-top__title"><span>Producción</span><h1>Cocina</h1></div><div class="kitchen-screen-top__actions"><span class="tpv-live">${user ? `${escapeHtml(user.displayName)} · ${state.orders.length} activas` : "Sin acceso"}</span>${user ? `<div class="tpv-shift kitchen-screen-shift"><span>Jornada · ${shiftDuration()}</span><button type="button" data-shift-action="${state.shift ? "end" : "start"}">${state.shift ? "Finalizar" : "He llegado"}</button></div><button type="button" class="tpv-action is-secondary" data-logout>Salir</button>` : `<button type="button" class="tpv-action" data-open-login>Acceder</button>`}</div></header>${user ? `<main class="kitchen-screen-board">${column("pending_confirmation", "Por confirmar")}${column("pending", "Pendientes")}${column("preparing", "En preparación")}${column("ready", "Listas")}</main>` : `<main class="kitchen-screen-welcome"><h2>Pantalla exclusiva de cocina</h2><p>Las comandas llegan aquí al enviarlas desde una mesa o desde la web.</p><button class="tpv-action" type="button" data-open-login>Acceder a cocina</button></main>`}${loginModal()}${state.toast ? `<div class="tpv-toast ${state.toast.tone ? `is-${state.toast.tone}` : ""}">${escapeHtml(state.toast.message)}</div>` : ""}</div>`;
   }
   root.addEventListener("click", (event) => {
     const button = event.target.closest("button");
@@ -92,6 +98,13 @@
     if (button.dataset.openLogin !== undefined) { state.loginOpen = true; render(); return; }
     if (button.dataset.closeLogin !== undefined) { state.loginOpen = false; render(); return; }
     if (button.dataset.loginUser) { state.loginUsername = button.dataset.loginUser; render(); return; }
+    if (button.dataset.shiftAction) {
+      const starting = button.dataset.shiftAction === "start";
+      (starting ? Cloud.startShift() : Cloud.endShift())
+        .then((shift) => { state.shift = starting ? shift : null; flash(starting ? "Jornada iniciada." : "Jornada finalizada.", "success"); render(); })
+        .catch((error) => { flash(error.message, "error"); render(); });
+      return;
+    }
     if (button.dataset.logout !== undefined) { Cloud.logout(); state.orders = []; state.loaded = false; render(); return; }
     if (button.dataset.kitchenOrder) changeStatus(button.dataset.kitchenOrder, button.dataset.kitchenStatus);
   });

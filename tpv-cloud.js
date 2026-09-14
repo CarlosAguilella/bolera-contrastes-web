@@ -133,6 +133,21 @@
     return result.session;
   }
 
+  async function loadShift(history = false) {
+    const result = await request(`tpv-orders?scope=${history ? "shift_history" : "shift"}`);
+    return history ? result.shifts || [] : result.shift || null;
+  }
+
+  async function startShift() {
+    const result = await request("tpv-orders", { method: "POST", body: JSON.stringify({ action: "shift_start" }) });
+    return result.shift;
+  }
+
+  async function endShift() {
+    const result = await request("tpv-orders", { method: "PATCH", body: JSON.stringify({ action: "shift_end" }) });
+    return result.shift;
+  }
+
   function saveRemoteProducts(data, products) {
     if (!data || !Array.isArray(products)) return data;
     data.prices = data.prices || {};
@@ -216,6 +231,7 @@
     loadTables,
     login,
     loadCashSession,
+    loadShift,
     loadCategories,
     loadKitchenOrders,
     loadOrders,
@@ -233,10 +249,12 @@
     tableId,
     openOrder,
     openCashSession,
+    startShift,
     seedProducts,
     sendOrderToKitchen,
     updateKitchenOrder,
     updateProduct,
     updateTable,
+    endShift,
   };
 })();
