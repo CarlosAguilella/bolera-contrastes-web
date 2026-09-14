@@ -84,10 +84,10 @@
     state.data.sales.forEach((sale) => { if (sale.tableId === previousId) sale.tableId = nextId; });
   }
   function nav() {
-    return `<aside class="tpv-management-sidebar"><a class="tpv-brand" href="tpv.html"><span class="tpv-brand__mark">C</span><span class="tpv-brand__type"><strong>Contrastes</strong><small>Gestión TPV</small></span></a><nav><a href="tpv.html">← Volver al TPV</a><button type="button" class="${state.tab === "ventas" ? "is-active" : ""}" data-tab="ventas">Ventas</button><button type="button" class="${state.tab === "caja" ? "is-active" : ""}" data-tab="caja">Caja y cierres</button><button type="button" class="${state.tab === "articulos" ? "is-active" : ""}" data-tab="articulos">Artículos y precios</button><button type="button" class="${state.tab === "sala" ? "is-active" : ""}" data-tab="sala">Sala y mesas</button><button type="button" class="${state.tab === "personal" ? "is-active" : ""}" data-tab="personal">Personal y PIN</button><button type="button" class="is-disabled" disabled>Clientes <small>Próximamente</small></button><button type="button" class="is-disabled" disabled>Proveedores <small>Próximamente</small></button></nav><p>Panel interno<br>Datos guardados en la base central.</p></aside>`;
+    return `<aside class="tpv-management-sidebar"><a class="tpv-brand" href="tpv.html"><span class="tpv-brand__mark">C</span><span class="tpv-brand__type"><strong>Contrastes</strong><small>Gestión TPV</small></span></a><nav><a href="tpv.html">← Volver al TPV</a><button type="button" class="${state.tab === "ventas" ? "is-active" : ""}" data-tab="ventas">Ventas</button><button type="button" class="${state.tab === "caja" ? "is-active" : ""}" data-tab="caja">Caja y cierres</button><button type="button" class="${state.tab === "articulos" ? "is-active" : ""}" data-tab="articulos">Artículos y precios</button><button type="button" class="${state.tab === "fidelizacion" ? "is-active" : ""}" data-tab="fidelizacion">Fidelización · Duros</button><button type="button" class="${state.tab === "produccion" ? "is-active" : ""}" data-tab="produccion">Producción</button><button type="button" class="${state.tab === "escandallo" ? "is-active" : ""}" data-tab="escandallo">Escandallo</button><button type="button" class="${state.tab === "sala" ? "is-active" : ""}" data-tab="sala">Sala y mesas</button><button type="button" class="${state.tab === "personal" ? "is-active" : ""}" data-tab="personal">Personal y PIN</button><button type="button" class="${state.tab === "contabilidad" ? "is-active" : ""}" data-tab="contabilidad">Contabilidad</button></nav><p>Panel interno<br>Datos guardados en la base central.</p></aside>`;
   }
   function topbar() {
-    const title = { ventas: "Ventas", caja: "Caja y cierres", articulos: "Artículos y precios", sala: "Sala y mesas", personal: "Personal y PIN" }[state.tab];
+    const title = { ventas: "Ventas", caja: "Caja y cierres", articulos: "Artículos y precios", fidelizacion: "Fidelización", produccion: "Producción", escandallo: "Escandallo", sala: "Sala y mesas", personal: "Personal y PIN", contabilidad: "Contabilidad" }[state.tab];
     const user = session()?.user;
     return `<header class="tpv-gestion-topbar"><div><span>Administración</span><h1>${title}</h1></div><div class="tpv-gestion-topbar__actions"><span class="tpv-live">${user ? `Base central · ${escapeHtml(user.displayName)}` : "Datos locales"}</span>${user ? `<button class="tpv-action is-secondary" type="button" data-logout>Salir</button>` : `<button class="tpv-action is-secondary" type="button" data-open-login>Acceder</button>`}<a class="tpv-action is-secondary" href="tpv.html">TPV camarero</a></div></header>`;
   }
@@ -133,6 +133,24 @@
     const canManage = user.role === "admin";
     return `<section class="tpv-gestion-content"><section class="tpv-gestion-card"><header><div><h2>Accesos del equipo</h2><span>Los camareros entran solo seleccionando su nombre</span></div></header>${canManage ? `<form class="tpv-staff-form" data-staff-form><label>Nombre<input name="displayName" placeholder="Matías o Lucía" required></label><label>Usuario<input name="username" pattern="[a-z0-9._-]{3,40}" placeholder="matias" required></label><label>Rol<select name="role"><option value="waiter">Camarero/a</option><option value="kitchen">Cocina</option><option value="manager">Gestor</option><option value="admin">Administrador</option></select></label><label>PIN <small>solo gestión/cocina</small><input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,10}" minlength="4" maxlength="10"></label><button class="tpv-action" type="submit">Crear acceso</button></form>` : `<p class="tpv-gestion-empty">Tu rol permite ver el personal, pero no crear ni cambiar PIN.</p>`}<div class="tpv-staff-list">${state.staff.length ? state.staff.map((staff) => `<article><div><b>${escapeHtml(staff.displayName)}</b><small>@${escapeHtml(staff.username)} · ${roleLabel(staff.role)}</small></div><span class="tpv-table-state ${staff.active ? "" : "is-open"}">${staff.active ? "Activo" : "Desactivado"}</span></article>`).join("") : `<p class="tpv-gestion-empty">Cargando personal…</p>`}</div></section><aside class="tpv-management-note"><h2>Los accesos actuales</h2><p>Crea los perfiles de <strong>Matías</strong> y <strong>Lucía</strong> con rol Camarero/a: no necesitan PIN.</p><p>El perfil Administrador conserva acceso completo y requiere PIN.</p></aside></section>`;
   }
+  function loyaltyCustomers() { return Array.isArray(state.data.loyaltyCustomers) ? state.data.loyaltyCustomers : []; }
+  function renderLoyalty() {
+    const customers = loyaltyCustomers();
+    const duros = customers.reduce((total, customer) => total + Number(customer.duros || 0), 0);
+    return `<section class="tpv-gestion-content"><div class="tpv-gestion-metrics"><article><span>Clientes</span><strong>${customers.length}</strong></article><article><span>Duros emitidos</span><strong>${duros}</strong></article><article><span>Regla inicial</span><strong>1 € = 1 Duro</strong></article><article><span>Canje</span><strong>Por definir</strong></article></div><section class="tpv-gestion-card"><header><div><h2>Alta de cliente</h2><span>Base inicial para el programa de fidelización</span></div></header><form class="tpv-loyalty-form" data-loyalty-form><label>Nombre<input name="name" maxlength="80" placeholder="Nombre del cliente" required></label><label>Teléfono<input name="phone" inputmode="tel" maxlength="30" placeholder="Opcional"></label><label>Email<input name="email" type="email" maxlength="120" placeholder="Opcional"></label><button class="tpv-action" type="submit">Crear cliente</button></form><div class="tpv-loyalty-list">${customers.length ? customers.map((customer) => `<article><div><b>${escapeHtml(customer.name)}</b><small>${escapeHtml(customer.phone || customer.email || "Sin contacto")}</small></div><strong>${Number(customer.duros || 0)} Duros</strong></article>`).join("") : `<p class="tpv-gestion-empty">Aún no hay clientes. Crea el primero para enseñar el programa.</p>`}</div></section><aside class="tpv-management-note"><h2>Cómo crecerá</h2><p>El cliente se seleccionará al cobrar una mesa y acumulará automáticamente Duros por el importe de la compra.</p><p>El canje, caducidad y promociones se definirán con tu jefe antes de activarlos.</p></aside></section>`;
+  }
+  function productionRows() {
+    const sold = new Map();
+    state.data.sales.forEach((sale) => (sale.lines || []).forEach((line) => sold.set(line.productId, (sold.get(line.productId) || 0) + Number(line.qty || 0))));
+    return [...sold.entries()].map(([productId, quantity]) => ({ item: product(productId), quantity })).filter((row) => row.item).sort((first, second) => second.quantity - first.quantity).slice(0, 12);
+  }
+  function renderProduction() {
+    const rows = productionRows();
+    const stock = state.data.stockLevels || {};
+    return `<section class="tpv-gestion-content"><div class="tpv-gestion-metrics"><article><span>Base de cálculo</span><strong>${state.data.sales.length} ventas</strong></article><article><span>Horizonte</span><strong>Próx. 3 días</strong></article><article><span>Artículos a revisar</span><strong>${rows.length}</strong></article><article><span>Stock</span><strong>Editable</strong></article></div><section class="tpv-gestion-card"><header><div><h2>Previsión de compra</h2><span>Estimación inicial según las ventas registradas y el stock introducido</span></div></header><div class="tpv-production-table"><div class="tpv-production-row is-heading"><span>Artículo</span><span>Vendidas</span><span>Previsión</span><span>Stock actual</span><span>Sugerencia</span></div>${rows.length ? rows.map((row) => { const forecast = Math.max(1, Math.ceil(row.quantity * 1.5)); const currentStock = Math.max(0, Number(stock[row.item.id] || 0)); return `<div class="tpv-production-row"><b>${escapeHtml(row.item.name)}</b><span>${row.quantity} uds.</span><span>${forecast} uds.</span><input type="number" min="0" value="${currentStock}" data-stock-product="${row.item.id}" aria-label="Stock de ${escapeHtml(row.item.name)}"><strong>${Math.max(0, forecast - currentStock)} uds.</strong></div>`; }).join("") : `<p class="tpv-gestion-empty">Cuando haya ventas cobradas, aquí aparecerán las previsiones por producto.</p>`}</div></section><aside class="tpv-management-note"><h2>Previsión inicial</h2><p>Ahora calcula una propuesta básica. Después podremos añadir ingredientes, proveedores, temporadas, días de la semana y stock mínimo.</p><p>Así el pedido sugerido pasará de productos vendidos a cantidades reales de compra.</p></aside></section>`;
+  }
+  function renderCosting() { return `<section class="tpv-gestion-content"><section class="tpv-gestion-card"><header><div><h2>Escandallo de recetas</h2><span>Diseñado para conocer el coste real y el margen de cada plato</span></div></header><div class="tpv-feature-grid"><article><b>Ingredientes por receta</b><span>Gramajes, unidades y mermas por cada artículo.</span></article><article><b>Coste automático</b><span>Coste por ración, margen bruto y aviso si cambia el proveedor.</span></article><article><b>Rentabilidad</b><span>Comparativa entre precio, coste y margen de cada plato.</span></article></div></section><aside class="tpv-management-note"><h2>Para decidir con tu jefe</h2><p>Hay que definir si el escandallo se hará por receta, por lote, por proveedor o combinando los tres.</p><p>Esta sección está preparada como propuesta antes de cargar ingredientes reales.</p></aside></section>`; }
+  function renderAccounting() { return `<section class="tpv-gestion-content"><section class="tpv-gestion-card tpv-coming-soon"><span>Próximamente</span><h2>Contabilidad</h2><p>Ingresos, gastos, facturas, impuestos y exportación para la asesoría.</p></section></section>`; }
   function priceModal() {
     if (!state.editingId && !state.creatingProduct) return "";
     const item = state.creatingProduct ? null : product(state.editingId);
@@ -158,7 +176,7 @@
     return `<div class="tpv-modal-backdrop"><form class="tpv-modal" data-login-form><button class="tpv-modal__close" type="button" data-close-login aria-label="Cerrar">×</button><h2>¿Quién entra?</h2><p>${waiter ? "Selecciona tu nombre para entrar al TPV." : "El acceso de administración requiere PIN."}</p><div class="tpv-login-users">${options.map(([username, label, role]) => `<button class="tpv-login-user ${state.loginUsername === username ? "is-active" : ""}" type="button" data-login-user="${username}"><b>${label}</b><small>${role}</small></button>`).join("")}</div><label>Usuario<input name="username" value="${state.loginUsername}" readonly></label>${waiter ? "" : `<label>PIN<input name="pin" type="password" inputmode="numeric" autocomplete="current-password" pattern="[0-9]{4,10}" minlength="4" maxlength="10" required autofocus></label>`}<div class="tpv-modal__actions"><button class="tpv-action is-secondary" type="button" data-close-login>Cancelar</button><button class="tpv-action" type="submit">Entrar</button></div></form></div>`;
   }
   function render() {
-    const content = state.tab === "ventas" ? renderSales() : state.tab === "caja" ? renderCashManagement() : state.tab === "articulos" ? renderArticles() : state.tab === "personal" ? renderStaff() : renderTables();
+    const content = state.tab === "ventas" ? renderSales() : state.tab === "caja" ? renderCashManagement() : state.tab === "articulos" ? renderArticles() : state.tab === "fidelizacion" ? renderLoyalty() : state.tab === "produccion" ? renderProduction() : state.tab === "escandallo" ? renderCosting() : state.tab === "contabilidad" ? renderAccounting() : state.tab === "personal" ? renderStaff() : renderTables();
     root.innerHTML = `<div class="tpv-management-app">${nav()}<main class="tpv-management-main">${topbar()}${content}</main>${priceModal()}${tableModal()}${loginModal()}${state.toast ? `<div class="tpv-toast is-success">${escapeHtml(state.toast)}</div>` : ""}</div>`;
   }
   function closeProductModal() {
@@ -273,6 +291,12 @@
     window.addEventListener("pointercancel", finishDraggedTable);
   }
   root.addEventListener("input", (event) => {
+    if (event.target.matches("[data-stock-product]")) {
+      state.data.stockLevels = state.data.stockLevels || {};
+      state.data.stockLevels[event.target.dataset.stockProduct] = Math.max(0, Number(event.target.value || 0));
+      save();
+      return;
+    }
     if (!event.target.matches("[data-search-products]")) return;
     state.search = event.target.value;
     render();
@@ -304,6 +328,17 @@
       Cloud.createStaff(values)
         .then(async () => { await refreshCloudStaff(); flash(`${values.displayName} ya tiene acceso propio.`); render(); })
         .catch((error) => { flash(error.message); render(); });
+      return;
+    }
+    if (event.target.matches("[data-loyalty-form]")) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      const name = String(form.get("name") || "").trim();
+      if (!name) { flash("Indica el nombre del cliente."); render(); return; }
+      state.data.loyaltyCustomers = [...loyaltyCustomers(), { id: `customer-${Date.now().toString(36)}`, name, phone: String(form.get("phone") || "").trim(), email: String(form.get("email") || "").trim(), duros: 0, createdAt: new Date().toISOString() }];
+      save();
+      flash(`${name} ya está en Fidelización.`);
+      render();
       return;
     }
     if (event.target.matches("[data-table-add-form]")) {

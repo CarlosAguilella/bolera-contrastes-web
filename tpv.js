@@ -181,7 +181,16 @@
     flash(status === "ready" ? `Mesa ${order.tableId} lista para servir.` : "Estado de cocina actualizado.", "success");
     render();
   }
-  async function pay(method) {
+  function addLoyaltyDuros(customerId, totalCents) {
+    if (!customerId) return null;
+    const customers = Array.isArray(state.data.loyaltyCustomers) ? state.data.loyaltyCustomers : [];
+    const customer = customers.find((item) => item.id === customerId);
+    if (!customer) return null;
+    const duros = Math.floor(Number(totalCents || 0) / 100);
+    customer.duros = Number(customer.duros || 0) + duros;
+    return { customer, duros };
+  }
+  async function pay(method, customerId) {
     const ticket = state.data.tables[state.selectedTableId];
     if (!ticket?.lines.length) { flash("Añade algún producto antes de cobrar."); render(); return; }
     const totalCents = total(ticket.lines);
@@ -197,13 +206,14 @@
       }
     }
     state.data.sales.unshift({ id: `V-${state.data.sequence++}`, tableId: state.selectedTableId, totalCents, method, paidAt: new Date().toISOString(), lines: ticket.lines.map((line) => ({ ...line })) });
+    const loyalty = addLoyaltyDuros(customerId, totalCents);
     state.data.kitchenOrders.forEach((order) => { if (order.tableId === state.selectedTableId && order.status === "ready") order.status = "delivered"; });
     delete state.data.tables[state.selectedTableId];
     state.selectedTableId = null;
     state.modal = null;
     state.page = "sala";
     save();
-    flash(`Mesa cobrada en ${method === "card" ? "tarjeta" : "efectivo"} y cerrada.`, "success");
+    flash(`Mesa cobrada en ${method === "card" ? "tarjeta" : "efectivo"} y cerrada.${loyalty ? ` ${loyalty.customer.name} suma ${loyalty.duros} Duros.` : ""}`, "success");
     render();
   }
   function resetDemo() {
@@ -265,7 +275,8 @@
   function paymentModal() {
     if (state.modal !== "payment") return "";
     const ticket = state.data.tables[state.selectedTableId];
-    return `<div class="tpv-modal-backdrop"><section class="tpv-modal"><button class="tpv-modal__close" type="button" data-close-modal="true" aria-label="Cerrar">×</button><h2>Cobrar mesa ${state.selectedTableId}</h2><p>Total a registrar: <strong>${Core.formatEuros(total(ticket?.lines || []))}</strong></p><div class="tpv-payment-options"><button type="button" data-pay="card"><b>Tarjeta</b><span>Confirmar en TPV bancario</span></button><button type="button" data-pay="cash"><b>Efectivo</b><span>Registrar cobro en caja</span></button></div><p class="tpv-modal__note">El pago con tarjeta se confirma después de cobrarlo en el terminal físico.</p></section></div>`;
+    const customers = Array.isArray(state.data.loyaltyCustomers) ? state.data.loyaltyCustomers : [];
+    return `<div class="tpv-modal-backdrop"><section class="tpv-modal"><button class="tpv-modal__close" type="button" data-close-modal="true" aria-label="Cerrar">×</button><h2>Cobrar mesa ${state.selectedTableId}</h2><p>Total a registrar: <strong>${Core.formatEuros(total(ticket?.lines || []))}</strong></p>${customers.length ? `<label>Cliente fidelizado<select data-payment-customer><option value="">Sin cliente</option>${customers.map((customer) => `<option value="${escapeHtml(customer.id)}">${escapeHtml(customer.name)} · ${Number(customer.duros || 0)} Duros</option>`).join("")}</select></label><p class="tpv-modal__note">Cada euro completo suma un Duro.</p>` : ""}<div class="tpv-payment-options"><button type="button" data-pay="card"><b>Tarjeta</b><span>Confirmar en TPV bancario</span></button><button type="button" data-pay="cash"><b>Efectivo</b><span>Registrar cobro en caja</span></button></div><p class="tpv-modal__note">El pago con tarjeta se confirma después de cobrarlo en el terminal físico.</p></section></div>`;
   }
   function cashModal() {
     if (!state.modal?.startsWith("cash-")) return "";
@@ -303,7 +314,7 @@
     if (button.dataset.closeCash !== undefined) { state.modal = "cash-close"; render(); return; }
     if (button.dataset.openPayment) { state.modal = "payment"; render(); return; }
     if (button.dataset.closeModal) { state.modal = null; render(); return; }
-    if (button.dataset.pay) { pay(button.dataset.pay); return; }
+    if (button.dataset.pay) { pay(button.dataset.pay, root.querySelector("[data-payment-customer]")?.value); return; }
     if (button.dataset.resetDemo) resetDemo();
   });
   root.addEventListener("submit", (event) => {
