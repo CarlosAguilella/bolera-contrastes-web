@@ -4,7 +4,7 @@
   const root = document.getElementById("tpv-gestion-root");
   if (!Core || !root) return;
 
-  const state = { tab: "ventas", search: "", staff: [], cashSession: null, cashHistory: [], shiftHistory: [], editingId: null, creatingProduct: window.location.hash === "#nuevo-articulo", editingTableId: null, deletingTableId: null, loginOpen: false, loginUsername: "carlos", data: Core.loadData(), toast: null };
+  const state = { tab: "ventas", search: "", staff: [], cashSession: null, cashHistory: [], shiftHistory: [], tableHistory: [], editingId: null, creatingProduct: window.location.hash === "#nuevo-articulo", editingTableId: null, deletingTableId: null, loginOpen: false, loginUsername: "carlos", data: Core.loadData(), toast: null };
   let toastTimer = null;
   let draggedTable = null;
 
@@ -62,6 +62,10 @@
     if (!isCloudConnected() || !["admin", "manager"].includes(session().user.role)) return;
     try { state.shiftHistory = await Cloud.loadShift(true); } catch (error) { state.shiftHistory = []; }
   }
+  async function refreshCloudTableHistory() {
+    if (!isCloudConnected() || !["admin", "manager"].includes(session().user.role)) return;
+    try { state.tableHistory = await Cloud.loadTableHistory(); } catch (error) { state.tableHistory = []; }
+  }
   function flash(message) {
     state.toast = message;
     clearTimeout(toastTimer);
@@ -88,10 +92,10 @@
     state.data.sales.forEach((sale) => { if (sale.tableId === previousId) sale.tableId = nextId; });
   }
   function nav() {
-    return `<aside class="tpv-management-sidebar"><a class="tpv-brand" href="tpv.html"><span class="tpv-brand__mark">C</span><span class="tpv-brand__type"><strong>Contrastes</strong><small>Gestión TPV</small></span></a><nav><a href="tpv.html">← Volver al TPV</a><button type="button" class="${state.tab === "ventas" ? "is-active" : ""}" data-tab="ventas">Ventas</button><button type="button" class="${state.tab === "caja" ? "is-active" : ""}" data-tab="caja">Caja y cierres</button><button type="button" class="${state.tab === "articulos" ? "is-active" : ""}" data-tab="articulos">Artículos y precios</button><button type="button" class="${state.tab === "fidelizacion" ? "is-active" : ""}" data-tab="fidelizacion">Fidelización · Duros</button><button type="button" class="${state.tab === "produccion" ? "is-active" : ""}" data-tab="produccion">Producción</button><button type="button" class="${state.tab === "escandallo" ? "is-active" : ""}" data-tab="escandallo">Escandallo</button><button type="button" class="${state.tab === "sala" ? "is-active" : ""}" data-tab="sala">Sala y mesas</button><button type="button" class="${state.tab === "personal" ? "is-active" : ""}" data-tab="personal">Personal y PIN</button><button type="button" class="${state.tab === "contabilidad" ? "is-active" : ""}" data-tab="contabilidad">Contabilidad</button></nav><p>Panel interno<br>Datos guardados en la base central.</p></aside>`;
+    return `<aside class="tpv-management-sidebar"><a class="tpv-brand" href="tpv.html"><span class="tpv-brand__mark">C</span><span class="tpv-brand__type"><strong>Contrastes</strong><small>Gestión TPV</small></span></a><nav><a href="tpv.html">← Volver al TPV</a><button type="button" class="${state.tab === "ventas" ? "is-active" : ""}" data-tab="ventas">Ventas</button><button type="button" class="${state.tab === "historial" ? "is-active" : ""}" data-tab="historial">Historial de mesas</button><button type="button" class="${state.tab === "caja" ? "is-active" : ""}" data-tab="caja">Caja y cierres</button><button type="button" class="${state.tab === "articulos" ? "is-active" : ""}" data-tab="articulos">Artículos y precios</button><button type="button" class="${state.tab === "fidelizacion" ? "is-active" : ""}" data-tab="fidelizacion">Fidelización · Duros</button><button type="button" class="${state.tab === "produccion" ? "is-active" : ""}" data-tab="produccion">Producción</button><button type="button" class="${state.tab === "escandallo" ? "is-active" : ""}" data-tab="escandallo">Escandallo</button><button type="button" class="${state.tab === "sala" ? "is-active" : ""}" data-tab="sala">Sala y mesas</button><button type="button" class="${state.tab === "personal" ? "is-active" : ""}" data-tab="personal">Personal y PIN</button><button type="button" class="${state.tab === "contabilidad" ? "is-active" : ""}" data-tab="contabilidad">Contabilidad</button></nav><p>Panel interno<br>Datos guardados en la base central.</p></aside>`;
   }
   function topbar() {
-    const title = { ventas: "Ventas", caja: "Caja y cierres", articulos: "Artículos y precios", fidelizacion: "Fidelización", produccion: "Producción", escandallo: "Escandallo", sala: "Sala y mesas", personal: "Personal y PIN", contabilidad: "Contabilidad" }[state.tab];
+    const title = { ventas: "Ventas", historial: "Historial de mesas", caja: "Caja y cierres", articulos: "Artículos y precios", fidelizacion: "Fidelización", produccion: "Producción", escandallo: "Escandallo", sala: "Sala y mesas", personal: "Personal y PIN", contabilidad: "Contabilidad" }[state.tab];
     const user = session()?.user;
     return `<header class="tpv-gestion-topbar"><div><span>Administración</span><h1>${title}</h1></div><div class="tpv-gestion-topbar__actions"><span class="tpv-live">${user ? `Base central · ${escapeHtml(user.displayName)}` : "Datos locales"}</span>${user ? `<button class="tpv-action is-secondary" type="button" data-logout>Salir</button>` : `<button class="tpv-action is-secondary" type="button" data-open-login>Acceder</button>`}<a class="tpv-action is-secondary" href="tpv.html">TPV camarero</a></div></header>`;
   }
@@ -107,6 +111,27 @@
     const average = sales.length ? Math.round(total / sales.length) : 0;
     const products = groupSales();
     return `<section class="tpv-gestion-content"><div class="tpv-gestion-metrics"><article><span>Documentos</span><strong>${sales.length}</strong></article><article><span>Ventas</span><strong>${Core.formatEuros(total)}</strong></article><article><span>Ticket medio</span><strong>${Core.formatEuros(average)}</strong></article><article><span>Mesas abiertas</span><strong>${Object.keys(state.data.tables).length}</strong></article></div><div class="tpv-gestion-grid"><section class="tpv-gestion-card"><header><h2>Ventas por forma de pago</h2><span>Turno actual</span></header>${renderBars([{ label: "Tarjeta", value: card }, { label: "Efectivo", value: cash }], "euros")}</section><section class="tpv-gestion-card"><header><h2>Artículos más vendidos</h2><span>Según ventas registradas</span></header>${products.length ? renderBars(products.map((item) => ({ label: item.product.name, value: item.qty })), "units") : `<p class="tpv-gestion-empty">Aún no hay ventas con detalle.</p>`}</section></div><section class="tpv-gestion-card"><header><h2>Últimas ventas</h2><span>${sales.length} documentos registrados</span></header><div class="tpv-sales-table"><div class="tpv-sales-row is-heading"><span>Documento</span><span>Mesa</span><span>Forma de pago</span><span>Total</span></div>${sales.length ? sales.slice(0, 8).map((sale) => `<div class="tpv-sales-row"><b>${escapeHtml(sale.id)}</b><span>Mesa ${escapeHtml(sale.tableId)}</span><span>${sale.method === "card" ? "Tarjeta" : "Efectivo"}</span><strong>${Core.formatEuros(sale.totalCents)}</strong></div>`).join("") : `<p class="tpv-gestion-empty">Aún no hay ventas registradas.</p>`}</div></section></section>`;
+  }
+  function serviceDuration(order) {
+    if (!order?.opened_at) return "—";
+    const end = order.closed_at ? new Date(order.closed_at).getTime() : Date.now();
+    const minutes = Math.max(0, Math.floor((end - new Date(order.opened_at).getTime()) / 60000));
+    return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")} min`;
+  }
+  function eventLabel(event) {
+    return ({ opened: "Mesa abierta", items_added: "Pedido añadido", sent_to_kitchen: "Enviado a cocina", kitchen_preparing: "En preparación", kitchen_ready: "Listo para servir", served: "Entregado", paid: "Mesa cerrada" })[event.event_type] || event.summary;
+  }
+  function renderTableHistory() {
+    if (!isCloudConnected() || !["admin", "manager"].includes(session()?.user?.role)) return `<section class="tpv-gestion-content"><section class="tpv-gestion-card"><p class="tpv-gestion-empty">Inicia sesión como administrador para consultar el historial de servicio.</p></section></section>`;
+    const groups = new Map();
+    state.tableHistory.forEach((event) => {
+      const key = event.pos_order_id;
+      if (!groups.has(key)) groups.set(key, { order: event.pos_orders || {}, events: [] });
+      groups.get(key).events.push(event);
+    });
+    const services = [...groups.values()].sort((first, second) => new Date(second.events[0].occurred_at) - new Date(first.events[0].occurred_at));
+    const active = services.filter((service) => !service.order.closed_at).length;
+    return `<section class="tpv-gestion-content"><div class="tpv-gestion-metrics"><article><span>Servicios guardados</span><strong>${services.length}</strong></article><article><span>Mesas activas</span><strong>${active}</strong></article><article><span>Eventos registrados</span><strong>${state.tableHistory.length}</strong></article><article><span>Detalle</span><strong>Por pedido</strong></article></div><section class="tpv-gestion-card"><header><div><h2>Historial de servicio por mesa</h2><span>Hora de apertura, pedidos añadidos, cocina, entrega y cierre.</span></div></header><div class="tpv-service-history">${services.length ? services.map((service) => { const order = service.order; const events = service.events.slice().sort((first, second) => new Date(first.occurred_at) - new Date(second.occurred_at)); return `<article class="tpv-service-card"><header><div><span>Mesa</span><h3>${escapeHtml(order.table_number || "—")}</h3><small>Pedido #${escapeHtml(order.order_number || "—")} · abierto ${order.opened_at ? new Date(order.opened_at).toLocaleString("es-ES") : "—"}</small></div><div><strong>${serviceDuration(order)}</strong><em>${order.closed_at ? "Cerrada" : "En curso"}</em></div></header><ol>${events.map((event) => { const items = Array.isArray(event.items) ? event.items : []; return `<li><time>${new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit" }).format(new Date(event.occurred_at))}</time><div><b>${escapeHtml(eventLabel(event))}</b><small>${escapeHtml(event.staff_users?.display_name || "Sistema")}${items.length ? ` · ${items.map((item) => `${item.quantity}× ${item.name}${item.variant ? ` (${item.variant})` : ""}`).join(", ")}` : ""}</small></div></li>`; }).join("")}</ol><footer>${order.closed_at ? `Cerrada ${new Date(order.closed_at).toLocaleString("es-ES")}` : "Servicio aún abierto"}${Number.isFinite(Number(order.total_cents)) ? `<strong>${Core.formatEuros(order.total_cents)}</strong>` : ""}</footer></article>`; }).join("") : `<p class="tpv-gestion-empty">Aún no hay servicios registrados. Se crearán al abrir una mesa desde el TPV.</p>`}</div></section><aside class="tpv-management-note"><h2>Lectura del servicio</h2><p>Por cada mesa se guarda cuándo se abrió, qué se añadió en cada momento y el paso por cocina.</p><p>Al cobrar se fija la duración total: por ejemplo, 1 h 10 min desde la apertura hasta el cierre.</p></aside></section>`;
   }
   function renderCashManagement() {
     const active = state.cashSession;
@@ -189,7 +214,7 @@
     return `<div class="tpv-modal-backdrop"><form class="tpv-modal" data-login-form><button class="tpv-modal__close" type="button" data-close-login aria-label="Cerrar">×</button><h2>¿Quién entra?</h2><p>${waiter ? "Selecciona tu nombre para entrar al TPV." : "El acceso de administración requiere PIN."}</p><div class="tpv-login-users">${options.map(([username, label, role]) => `<button class="tpv-login-user ${state.loginUsername === username ? "is-active" : ""}" type="button" data-login-user="${username}"><b>${label}</b><small>${role}</small></button>`).join("")}</div><label>Usuario<input name="username" value="${state.loginUsername}" readonly></label>${waiter ? "" : `<label>PIN<input name="pin" type="password" inputmode="numeric" autocomplete="current-password" pattern="[0-9]{4,10}" minlength="4" maxlength="10" required autofocus></label>`}<div class="tpv-modal__actions"><button class="tpv-action is-secondary" type="button" data-close-login>Cancelar</button><button class="tpv-action" type="submit">Entrar</button></div></form></div>`;
   }
   function render() {
-    const content = state.tab === "ventas" ? renderSales() : state.tab === "caja" ? renderCashManagement() : state.tab === "articulos" ? renderArticles() : state.tab === "fidelizacion" ? renderLoyalty() : state.tab === "produccion" ? renderProduction() : state.tab === "escandallo" ? renderCosting() : state.tab === "contabilidad" ? renderAccounting() : state.tab === "personal" ? renderStaff() : renderTables();
+    const content = state.tab === "ventas" ? renderSales() : state.tab === "historial" ? renderTableHistory() : state.tab === "caja" ? renderCashManagement() : state.tab === "articulos" ? renderArticles() : state.tab === "fidelizacion" ? renderLoyalty() : state.tab === "produccion" ? renderProduction() : state.tab === "escandallo" ? renderCosting() : state.tab === "contabilidad" ? renderAccounting() : state.tab === "personal" ? renderStaff() : renderTables();
     root.innerHTML = `<div class="tpv-management-app">${nav()}<main class="tpv-management-main">${topbar()}${content}</main>${priceModal()}${tableModal()}${loginModal()}${state.toast ? `<div class="tpv-toast is-success">${escapeHtml(state.toast)}</div>` : ""}</div>`;
   }
   function closeProductModal() {
@@ -202,7 +227,7 @@
     if (action) { event.preventDefault(); state.creatingProduct = true; render(); return; }
     const button = event.target.closest("button");
     if (!button) return;
-    if (button.dataset.tab) { state.tab = button.dataset.tab; if (state.tab === "personal") { Promise.all([refreshCloudStaff(), refreshCloudShiftHistory()]).then(render).catch((error) => { flash(error.message); render(); }); } if (state.tab === "caja") { refreshCloudCash().then(render).catch((error) => { flash(error.message); render(); }); } render(); return; }
+    if (button.dataset.tab) { state.tab = button.dataset.tab; if (state.tab === "personal") { Promise.all([refreshCloudStaff(), refreshCloudShiftHistory()]).then(render).catch((error) => { flash(error.message); render(); }); } if (state.tab === "historial") { refreshCloudTableHistory().then(render).catch((error) => { flash(error.message); render(); }); } if (state.tab === "caja") { refreshCloudCash().then(render).catch((error) => { flash(error.message); render(); }); } render(); return; }
     if (button.dataset.loginUser) { state.loginUsername = button.dataset.loginUser; render(); return; }
     if (button.dataset.openLogin !== undefined) { state.loginOpen = true; render(); return; }
     if (button.dataset.closeLogin !== undefined) { state.loginOpen = false; render(); return; }
@@ -329,6 +354,7 @@
           await refreshCloudStaff();
           await refreshCloudCash();
           await refreshCloudShiftHistory();
+          await refreshCloudTableHistory();
           state.loginOpen = false;
           flash("Sesión iniciada. Las mesas ya usan la base central.");
           render();
@@ -433,7 +459,7 @@
     render();
   });
   if (isCloudConnected()) {
-    Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales(), refreshCloudStaff(), refreshCloudCash(), refreshCloudShiftHistory()]).then(render).catch(() => {});
-    window.setInterval(() => Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales(), refreshCloudCash(), refreshCloudShiftHistory()]).then(render).catch(() => {}), 15000);
+    Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales(), refreshCloudStaff(), refreshCloudCash(), refreshCloudShiftHistory(), refreshCloudTableHistory()]).then(render).catch(() => {});
+    window.setInterval(() => Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales(), refreshCloudCash(), refreshCloudShiftHistory(), refreshCloudTableHistory()]).then(render).catch(() => {}), 15000);
   }
 })();

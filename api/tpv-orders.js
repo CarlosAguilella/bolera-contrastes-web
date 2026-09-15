@@ -125,6 +125,25 @@ async function openStaffShift(config, staffUserId) {
   return Array.isArray(shifts) ? shifts[0] || null : null;
 }
 
+async function recordServiceEvent(config, event) {
+  try {
+    await supabaseRequest(config, "table_service_events", {
+      method: "POST",
+      body: JSON.stringify(event),
+      headers: { Prefer: "return=minimal" },
+    });
+  } catch (error) {}
+}
+
+function addedItems(previousItems, nextItems) {
+  const previousQuantities = new Map((previousItems || []).map((item) => [`${item.product_id}:${item.variant || ""}`, Number(item.quantity || 0)]));
+  return (nextItems || []).map((item) => {
+    const key = `${item.product_id}:${item.variant || ""}`;
+    const quantity = Math.max(0, Number(item.quantity || 0) - Number(previousQuantities.get(key) || 0));
+    return quantity ? { name: item.product_name, variant: item.variant, quantity } : null;
+  }).filter(Boolean);
+}
+
 module.exports = async function handler(req, res) {
   try {
     const config = requireConfig(getConfig());
@@ -138,6 +157,11 @@ module.exports = async function handler(req, res) {
         requireRoles(req, CASH_MANAGER_ROLES);
         const shifts = await supabaseRequest(config, "staff_shifts?select=*,staff_users(display_name,role)&order=started_at.desc&limit=100", { method: "GET" });
         return res.status(200).json({ ok: true, shifts: Array.isArray(shifts) ? shifts : [] });
+      }
+      if (scope === "table_history") {
+        requireRoles(req, CASH_MANAGER_ROLES);
+        const events = await supabaseRequest(config, "table_service_events?select=*,staff_users(display_name,role),pos_orders(order_number,table_number,status,opened_at,closed_at,total_cents,payment_method)&order=occurred_at.desc&limit=400", { method: "GET" });
+        return res.status(200).json({ ok: true, events: Array.isArray(events) ? events : [] });
       }
       if (scope === "cash") return res.status(200).json({ ok: true, session: await cashSummary(config, await openCashSession(config)) });
       if (scope === "cash_history") {
@@ -229,6 +253,7 @@ module.exports = async function handler(req, res) {
       });
       const order = Array.isArray(orders) ? orders[0] : orders;
       await audit(config, session.sub, "pos_orders", order.id, "open", { tableNumber: table.table_number });
+      await recordServiceEvent(config, { pos_order_id: order.id, event_type: "opened", summary: `Mesa ${table.table_number} abierta`, actor_id: session.sub });
       return res.status(201).json({ ok: true, order: { ...order, pos_order_items: [] } });
     }
 
@@ -239,10 +264,12 @@ module.exports = async function handler(req, res) {
 
     if (req.method === "PATCH" && body.action === "save") {
       const detail = await replaceOrderLines(config, orderId, body.lines, true);
+      const additions = addedItems(currentOrder.pos_order_items, detail.items);
       const orders = await supabaseRequest(config, `pos_orders?id=eq.${encodeURIComponent(orderId)}`, {
         method: "PATCH",
         body: JSON.stringify({ subtotal_cents: detail.totalCents, total_cents: detail.totalCents }),
       });
+      if (additions.length) await recordServiceEvent(config, { pos_order_id: orderId, event_type: "items_added", summary: `${additions.reduce((total, item) => total + item.quantity, 0)} artículo${additions.reduce((total, item) => total + item.quantity, 0) === 1 ? " añadido" : "s añadidos"}`, items: additions, actor_id: session.sub });
       return res.status(200).json({ ok: true, order: Array.isArray(orders) ? orders[0] : orders });
     }
 
@@ -273,6 +300,7 @@ module.exports = async function handler(req, res) {
         body: JSON.stringify({ status: "sent", subtotal_cents: detail.totalCents, total_cents: detail.totalCents }),
       });
       await audit(config, session.sub, "pos_orders", orderId, "send_kitchen", { tableNumber: currentOrder.table_number, lines: items.length });
+      await recordServiceEvent(config, { pos_order_id: orderId, event_type: "sent_to_kitchen", summary: "Comanda enviada a cocina", items: items.map((item) => ({ name: item.name, variant: item.variant, quantity: item.qty })), actor_id: session.sub });
       return res.status(200).json({ ok: true, order: Array.isArray(orders) ? orders[0] : orders, kitchenOrderIds: kitchenOrders.map((order) => order.order_id) });
     }
 
@@ -293,6 +321,7 @@ module.exports = async function handler(req, res) {
         }),
       });
       await audit(config, session.sub, "pos_orders", orderId, "pay", { method, totalCents: detail.totalCents });
+      await recordServiceEvent(config, { pos_order_id: orderId, event_type: "paid", summary: "Mesa cobrada y cerrada", actor_id: session.sub });
       return res.status(200).json({ ok: true, order: Array.isArray(orders) ? orders[0] : orders });
     }
 

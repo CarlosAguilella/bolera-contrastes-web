@@ -179,6 +179,11 @@
     return result.orders || [];
   }
 
+  async function loadTableHistory() {
+    const result = await request("tpv-orders?scope=table_history");
+    return result.events || [];
+  }
+
   async function openOrder(tableNumber) {
     const result = await request("tpv-orders", { method: "POST", body: JSON.stringify({ tableNumber }) });
     return result.order;
@@ -238,6 +243,7 @@
     loadProducts,
     loadSales,
     loadStaff,
+    loadTableHistory,
     logout,
     request,
     reorderCategories,
