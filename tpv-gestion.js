@@ -4,7 +4,7 @@
   const root = document.getElementById("tpv-gestion-root");
   if (!Core || !root) return;
 
-  const state = { tab: "ventas", search: "", staff: [], cashSession: null, cashHistory: [], shiftHistory: [], tableHistory: [], editingId: null, creatingProduct: window.location.hash === "#nuevo-articulo", editingTableId: null, deletingTableId: null, loginOpen: false, loginUsername: "carlos", data: Core.loadData(), toast: null };
+  const state = { tab: "ventas", search: "", staff: [], cashSession: null, cashHistory: [], shiftHistory: [], tableHistory: [], production: { ingredients: [], recipes: [], recipeLines: [], settings: null }, recipeProductId: "", editingId: null, creatingProduct: window.location.hash === "#nuevo-articulo", editingTableId: null, deletingTableId: null, loginOpen: false, loginUsername: "carlos", data: Core.loadData(), toast: null };
   let toastTimer = null;
   let draggedTable = null;
 
@@ -65,6 +65,10 @@
   async function refreshCloudTableHistory() {
     if (!isCloudConnected() || !["admin", "manager"].includes(session().user.role)) return;
     try { state.tableHistory = await Cloud.loadTableHistory(); } catch (error) { state.tableHistory = []; }
+  }
+  async function refreshCloudProduction() {
+    if (!isCloudConnected() || !["admin", "manager"].includes(session().user.role)) return;
+    try { state.production = await Cloud.loadProduction(); } catch (error) { state.production = { ingredients: [], recipes: [], recipeLines: [], settings: null }; }
   }
   function flash(message) {
     state.toast = message;
@@ -177,17 +181,52 @@
     const duros = customers.reduce((total, customer) => total + Number(customer.duros || 0), 0);
     return `<section class="tpv-gestion-content"><div class="tpv-gestion-metrics"><article><span>Clientes</span><strong>${customers.length}</strong></article><article><span>Duros emitidos</span><strong>${duros}</strong></article><article><span>Regla inicial</span><strong>1 € = 1 Duro</strong></article><article><span>Canje</span><strong>Por definir</strong></article></div><section class="tpv-gestion-card"><header><div><h2>Alta de cliente</h2><span>Base inicial para el programa de fidelización</span></div></header><form class="tpv-loyalty-form" data-loyalty-form><label>Nombre<input name="name" maxlength="80" placeholder="Nombre del cliente" required></label><label>Teléfono<input name="phone" inputmode="tel" maxlength="30" placeholder="Opcional"></label><label>Email<input name="email" type="email" maxlength="120" placeholder="Opcional"></label><button class="tpv-action" type="submit">Crear cliente</button></form><div class="tpv-loyalty-list">${customers.length ? customers.map((customer) => `<article><div><b>${escapeHtml(customer.name)}</b><small>${escapeHtml(customer.phone || customer.email || "Sin contacto")}</small></div><strong>${Number(customer.duros || 0)} Duros</strong></article>`).join("") : `<p class="tpv-gestion-empty">Aún no hay clientes. Crea el primero para enseñar el programa.</p>`}</div></section><aside class="tpv-management-note"><h2>Cómo crecerá</h2><p>El cliente se seleccionará al cobrar una mesa y acumulará automáticamente Duros por el importe de la compra.</p><p>El canje, caducidad y promociones se definirán con tu jefe antes de activarlos.</p></aside></section>`;
   }
-  function productionRows() {
-    const sold = new Map();
-    state.data.sales.forEach((sale) => (sale.lines || []).forEach((line) => sold.set(line.productId, (sold.get(line.productId) || 0) + Number(line.qty || 0))));
-    return [...sold.entries()].map(([productId, quantity]) => ({ item: product(productId), quantity })).filter((row) => row.item).sort((first, second) => second.quantity - first.quantity).slice(0, 12);
+  function remoteProducts() { return (state.data.remoteProducts || []).filter((item) => item.active !== false); }
+  function ingredientById(id) { return state.production.ingredients.find((item) => item.id === id); }
+  function recipeForProduct(productId) { return state.production.recipes.find((recipe) => recipe.product_id === productId); }
+  function recipeLines(recipeId) { return state.production.recipeLines.filter((line) => line.recipe_id === recipeId); }
+  function ingredientUnitCost(ingredient) { return Number(ingredient.pack_price_cents || 0) / (1 + Number(ingredient.purchase_vat_percent || 0) / 100) / Number(ingredient.pack_quantity || 1); }
+  function recipeCost(recipe) {
+    if (!recipe) return null;
+    const ingredientsCost = recipeLines(recipe.id).reduce((total, line) => {
+      const ingredient = ingredientById(line.ingredient_id);
+      return total + (ingredient ? ingredientUnitCost(ingredient) * Number(line.quantity) * (1 + Number(line.waste_percent || 0) / 100) : 0);
+    }, 0);
+    const settings = state.production.settings || {};
+    return Math.round(ingredientsCost / Number(recipe.yield_quantity || 1) + Number(recipe.direct_cost_cents || 0) + Number(settings.overhead_per_serving_cents || 0) + Number(settings.labour_per_serving_cents || 0));
   }
+  function productName(productId) { const item = remoteProducts().find((product) => product.id === productId); return item ? `${item.name}${item.variant ? ` · ${item.variant}` : ""}` : "Artículo"; }
+  function forecastIngredients() {
+    const demand = new Map();
+    state.data.sales.forEach((sale) => (sale.lines || []).forEach((line) => {
+      const productId = state.data.cloudProductIds?.[line.productId];
+      const recipe = recipeForProduct(productId);
+      if (!recipe) return;
+      recipeLines(recipe.id).forEach((recipeLine) => {
+        const used = Number(line.qty || 0) * Number(recipeLine.quantity) * (1 + Number(recipeLine.waste_percent || 0) / 100) / Number(recipe.yield_quantity || 1);
+        demand.set(recipeLine.ingredient_id, (demand.get(recipeLine.ingredient_id) || 0) + used);
+      });
+    }));
+    return state.production.ingredients.map((ingredient) => ({ ingredient, soldUsage: Number(demand.get(ingredient.id) || 0), forecastUsage: Number(demand.get(ingredient.id) || 0) * 1.5 })).filter((row) => row.soldUsage || Number(row.ingredient.minimum_stock_quantity || 0) > 0);
+  }
+  function formatQuantity(value, unit) { return `${Number(value || 0).toLocaleString("es-ES", { maximumFractionDigits: 2 })} ${unit}`; }
   function renderProduction() {
-    const rows = productionRows();
-    const stock = state.data.stockLevels || {};
-    return `<section class="tpv-gestion-content"><div class="tpv-gestion-metrics"><article><span>Base de cálculo</span><strong>${state.data.sales.length} ventas</strong></article><article><span>Horizonte</span><strong>Próx. 3 días</strong></article><article><span>Artículos a revisar</span><strong>${rows.length}</strong></article><article><span>Stock</span><strong>Editable</strong></article></div><section class="tpv-gestion-card"><header><div><h2>Previsión de compra</h2><span>Estimación inicial según las ventas registradas y el stock introducido</span></div></header><div class="tpv-production-table"><div class="tpv-production-row is-heading"><span>Artículo</span><span>Vendidas</span><span>Previsión</span><span>Stock actual</span><span>Sugerencia</span></div>${rows.length ? rows.map((row) => { const forecast = Math.max(1, Math.ceil(row.quantity * 1.5)); const currentStock = Math.max(0, Number(stock[row.item.id] || 0)); return `<div class="tpv-production-row"><b>${escapeHtml(row.item.name)}</b><span>${row.quantity} uds.</span><span>${forecast} uds.</span><input type="number" min="0" value="${currentStock}" data-stock-product="${row.item.id}" aria-label="Stock de ${escapeHtml(row.item.name)}"><strong>${Math.max(0, forecast - currentStock)} uds.</strong></div>`; }).join("") : `<p class="tpv-gestion-empty">Cuando haya ventas cobradas, aquí aparecerán las previsiones por producto.</p>`}</div></section><aside class="tpv-management-note"><h2>Previsión inicial</h2><p>Ahora calcula una propuesta básica. Después podremos añadir ingredientes, proveedores, temporadas, días de la semana y stock mínimo.</p><p>Así el pedido sugerido pasará de productos vendidos a cantidades reales de compra.</p></aside></section>`;
+    if (!isCloudConnected() || !["admin", "manager"].includes(session()?.user?.role)) return `<section class="tpv-gestion-content"><section class="tpv-gestion-card"><p class="tpv-gestion-empty">Inicia sesión como administrador para calcular la producción.</p></section></section>`;
+    const rows = forecastIngredients();
+    return `<section class="tpv-gestion-content"><div class="tpv-gestion-metrics"><article><span>Ingredientes activos</span><strong>${state.production.ingredients.length}</strong></article><article><span>Recetas creadas</span><strong>${state.production.recipes.length}</strong></article><article><span>Base de previsión</span><strong>${state.data.sales.length} ventas</strong></article><article><span>Horizonte</span><strong>Próx. 3 días</strong></article></div><section class="tpv-gestion-card"><header><div><h2>Pedido sugerido de materias primas</h2><span>Consumo de ventas registradas × 1,5, descontando el stock disponible.</span></div></header><div class="tpv-production-table"><div class="tpv-production-row is-heading"><span>Materia prima</span><span>Consumido</span><span>Previsión</span><span>Stock</span><span>Comprar</span></div>${rows.length ? rows.map(({ ingredient, soldUsage, forecastUsage }) => { const target = Math.max(forecastUsage, Number(ingredient.minimum_stock_quantity || 0)); const toBuy = Math.max(0, target - Number(ingredient.stock_quantity || 0)); const packs = Math.ceil(toBuy / Number(ingredient.pack_quantity || 1)); return `<div class="tpv-production-row"><div><b>${escapeHtml(ingredient.name)}</b><small>${escapeHtml(ingredient.supplier || "Sin proveedor")}</small></div><span>${formatQuantity(soldUsage, ingredient.base_unit)}</span><span>${formatQuantity(forecastUsage, ingredient.base_unit)}</span><span>${formatQuantity(ingredient.stock_quantity, ingredient.base_unit)}</span><strong>${toBuy ? `${packs} env. · ${formatQuantity(toBuy, ingredient.base_unit)}` : "Correcto"}</strong></div>`; }).join("") : `<p class="tpv-gestion-empty">Crea ingredientes, recetas y algunas ventas para obtener una lista de compra real.</p>`}</div></section><aside class="tpv-management-note"><h2>Cómo se calcula</h2><p>Una receta transforma cada venta en gramos, mililitros o unidades de materia prima. La previsión se compara con el stock y el mínimo configurado.</p><p>Cuando tengáis más historial, podremos usar ventas reales por día de la semana y temporada.</p></aside></section>`;
   }
-  function renderCosting() { return `<section class="tpv-gestion-content"><section class="tpv-gestion-card"><header><div><h2>Escandallo de recetas</h2><span>Diseñado para conocer el coste real y el margen de cada plato</span></div></header><div class="tpv-feature-grid"><article><b>Ingredientes por receta</b><span>Gramajes, unidades y mermas por cada artículo.</span></article><article><b>Coste automático</b><span>Coste por ración, margen bruto y aviso si cambia el proveedor.</span></article><article><b>Rentabilidad</b><span>Comparativa entre precio, coste y margen de cada plato.</span></article></div></section><aside class="tpv-management-note"><h2>Para decidir con tu jefe</h2><p>Hay que definir si el escandallo se hará por receta, por lote, por proveedor o combinando los tres.</p><p>Esta sección está preparada como propuesta antes de cargar ingredientes reales.</p></aside></section>`; }
+  function renderCosting() {
+    if (!isCloudConnected() || !["admin", "manager"].includes(session()?.user?.role)) return `<section class="tpv-gestion-content"><section class="tpv-gestion-card"><p class="tpv-gestion-empty">Inicia sesión como administrador para crear escandallos.</p></section></section>`;
+    const products = remoteProducts();
+    const selectedId = state.recipeProductId || products[0]?.id || "";
+    const recipe = recipeForProduct(selectedId);
+    const lines = recipe ? recipeLines(recipe.id) : [];
+    const recipeCostCents = recipeCost(recipe);
+    const selectedProduct = products.find((item) => item.id === selectedId);
+    const settings = state.production.settings || { sales_vat_percent: 10, target_margin_percent: 70, overhead_per_serving_cents: 0, labour_per_serving_cents: 0 };
+    const suggestedPrice = recipeCostCents === null ? null : Math.round(recipeCostCents / (1 - Number(settings.target_margin_percent) / 100) * (1 + Number(settings.sales_vat_percent) / 100));
+    return `<section class="tpv-gestion-content"><section class="tpv-gestion-card"><header><div><h2>Reglas de precio y costes indirectos</h2><span>Incluye luz, mantenimiento, neveras, horno y mano de obra por cada ración.</span></div></header><form class="tpv-cost-settings" data-cost-settings-form><label>IVA venta (%)<input name="salesVatPercent" type="number" min="0" max="100" step="0.01" value="${settings.sales_vat_percent}"></label><label>Margen objetivo (%)<input name="targetMarginPercent" type="number" min="0" max="99.99" step="0.01" value="${settings.target_margin_percent}"></label><label>Gastos indirectos / ración (€)<input name="overheadPerServing" type="number" min="0" step="0.01" value="${(Number(settings.overhead_per_serving_cents || 0) / 100).toFixed(2)}"></label><label>Mano de obra / ración (€)<input name="labourPerServing" type="number" min="0" step="0.01" value="${(Number(settings.labour_per_serving_cents || 0) / 100).toFixed(2)}"></label><button class="tpv-action" type="submit">Guardar reglas</button></form></section><section class="tpv-gestion-card"><header><div><h2>Materias primas</h2><span>Alta de envases, precio de compra con IVA, stock y proveedor.</span></div></header><form class="tpv-ingredient-form" data-ingredient-create-form><label>Nombre<input name="name" required placeholder="Pan de bocadillo"></label><label>Unidad<select name="baseUnit"><option value="unidad">Unidad</option><option value="g">Gramos</option><option value="ml">Mililitros</option></select></label><label>Contenido envase<input name="packQuantity" type="number" min="0.001" step="0.001" required placeholder="1"></label><label>Compra envase (€)<input name="packPrice" type="number" min="0" step="0.01" required></label><label>IVA compra (%)<input name="purchaseVatPercent" type="number" min="0" max="100" step="0.01" value="10"></label><label>Stock actual<input name="stockQuantity" type="number" min="0" step="0.001" value="0"></label><label>Stock mínimo<input name="minimumStockQuantity" type="number" min="0" step="0.001" value="0"></label><label>Proveedor<input name="supplier" placeholder="Opcional"></label><button class="tpv-action" type="submit">Añadir materia prima</button></form><div class="tpv-ingredients-list">${state.production.ingredients.length ? state.production.ingredients.map((ingredient) => `<form data-ingredient-update-form><input type="hidden" name="id" value="${ingredient.id}"><b>${escapeHtml(ingredient.name)}</b><span>${ingredient.base_unit}</span><label>Envase<input name="packQuantity" type="number" min="0.001" step="0.001" value="${ingredient.pack_quantity}"></label><label>Compra €<input name="packPrice" type="number" min="0" step="0.01" value="${(Number(ingredient.pack_price_cents) / 100).toFixed(2)}"></label><label>IVA %<input name="purchaseVatPercent" type="number" min="0" max="100" step="0.01" value="${ingredient.purchase_vat_percent}"></label><label>Stock<input name="stockQuantity" type="number" min="0" step="0.001" value="${ingredient.stock_quantity}"></label><label>Mínimo<input name="minimumStockQuantity" type="number" min="0" step="0.001" value="${ingredient.minimum_stock_quantity}"></label><label>Proveedor<input name="supplier" value="${escapeHtml(ingredient.supplier || "")}"></label><button class="tpv-edit-button" type="submit">Guardar</button></form>`).join("") : `<p class="tpv-gestion-empty">Añade la primera materia prima: pan, café, aceite, bebida, etc.</p>`}</div></section><section class="tpv-gestion-card"><header><div><h2>Receta y escandallo</h2><span>Define lo que consume cada artículo vendido.</span></div></header><div class="tpv-recipe-selector"><label>Producto vendido<select data-recipe-product>${products.map((item) => `<option value="${item.id}" ${item.id === selectedId ? "selected" : ""}>${escapeHtml(item.name)}${item.variant ? ` · ${escapeHtml(item.variant)}` : ""}</option>`).join("")}</select></label>${selectedProduct ? `<strong>PVP actual: ${Core.formatEuros(selectedProduct.price_cents)}</strong>` : ""}</div>${selectedId ? `<form class="tpv-recipe-config" data-recipe-config-form><input type="hidden" name="productId" value="${selectedId}"><label>Raciones que salen<input name="yieldQuantity" type="number" min="0.001" step="0.001" value="${recipe?.yield_quantity || 1}"></label><label>Coste directo por ración (€)<input name="directCost" type="number" min="0" step="0.01" value="${(Number(recipe?.direct_cost_cents || 0) / 100).toFixed(2)}"></label><button class="tpv-edit-button" type="submit">Guardar receta</button></form><form class="tpv-recipe-line-form" data-recipe-line-form><input type="hidden" name="productId" value="${selectedId}"><label>Ingrediente<select name="ingredientId" required><option value="">Selecciona</option>${state.production.ingredients.map((ingredient) => `<option value="${ingredient.id}">${escapeHtml(ingredient.name)} · ${ingredient.base_unit}</option>`).join("")}</select></label><label>Cantidad por receta<input name="quantity" type="number" min="0.001" step="0.001" required></label><label>Merma (%)<input name="wastePercent" type="number" min="0" max="100" step="0.01" value="0"></label><button class="tpv-action" type="submit">Añadir ingrediente</button></form><div class="tpv-recipe-lines">${lines.length ? lines.map((line) => { const ingredient = ingredientById(line.ingredient_id); const cost = ingredient ? ingredientUnitCost(ingredient) * Number(line.quantity) * (1 + Number(line.waste_percent) / 100) / Number(recipe.yield_quantity || 1) : 0; return `<article><div><b>${escapeHtml(ingredient?.name || "Ingrediente eliminado")}</b><small>${formatQuantity(line.quantity, ingredient?.base_unit || "")} · merma ${line.waste_percent}%</small></div><strong>${Core.formatEuros(Math.round(cost))}</strong><button class="tpv-delete-button" type="button" data-delete-recipe-line="${line.id}">Quitar</button></article>`; }).join("") : `<p class="tpv-gestion-empty">Añade los ingredientes de esta receta.</p>`}</div><div class="tpv-recipe-total"><span>Coste real por ración (sin IVA recuperable)</span><strong>${recipeCostCents === null ? "Configura la receta" : Core.formatEuros(recipeCostCents)}</strong><span>Precio recomendado con ${settings.target_margin_percent}% de margen e IVA ${settings.sales_vat_percent}%</span><b>${suggestedPrice === null ? "—" : Core.formatEuros(suggestedPrice)}</b></div>` : `<p class="tpv-gestion-empty">No hay artículos de venta disponibles.</p>`}</section><aside class="tpv-management-note"><h2>Uso recomendado</h2><p>Empieza por los artículos más vendidos. Introduce la cantidad real usada por ración, el precio del proveedor y el stock.</p><p>El precio recomendado separa el IVA recuperable de compra, añade costes indirectos y aplica el margen que decidáis.</p></aside></section>`;
+  }
   function renderAccounting() { return `<section class="tpv-gestion-content"><section class="tpv-gestion-card tpv-coming-soon"><span>Próximamente</span><h2>Contabilidad</h2><p>Ingresos, gastos, facturas, impuestos y exportación para la asesoría.</p></section></section>`; }
   function priceModal() {
     if (!state.editingId && !state.creatingProduct) return "";
@@ -227,10 +266,15 @@
     if (action) { event.preventDefault(); state.creatingProduct = true; render(); return; }
     const button = event.target.closest("button");
     if (!button) return;
-    if (button.dataset.tab) { state.tab = button.dataset.tab; if (state.tab === "personal") { Promise.all([refreshCloudStaff(), refreshCloudShiftHistory()]).then(render).catch((error) => { flash(error.message); render(); }); } if (state.tab === "historial") { refreshCloudTableHistory().then(render).catch((error) => { flash(error.message); render(); }); } if (state.tab === "caja") { refreshCloudCash().then(render).catch((error) => { flash(error.message); render(); }); } render(); return; }
+    if (button.dataset.tab) { state.tab = button.dataset.tab; if (state.tab === "personal") { Promise.all([refreshCloudStaff(), refreshCloudShiftHistory()]).then(render).catch((error) => { flash(error.message); render(); }); } if (["produccion", "escandallo"].includes(state.tab)) { refreshCloudProduction().then(render).catch((error) => { flash(error.message); render(); }); } if (state.tab === "historial") { refreshCloudTableHistory().then(render).catch((error) => { flash(error.message); render(); }); } if (state.tab === "caja") { refreshCloudCash().then(render).catch((error) => { flash(error.message); render(); }); } render(); return; }
     if (button.dataset.loginUser) { state.loginUsername = button.dataset.loginUser; render(); return; }
     if (button.dataset.openLogin !== undefined) { state.loginOpen = true; render(); return; }
     if (button.dataset.closeLogin !== undefined) { state.loginOpen = false; render(); return; }
+    if (button.dataset.deleteRecipeLine) {
+      try { await Cloud.deleteRecipeLine(button.dataset.deleteRecipeLine); await refreshCloudProduction(); flash("Ingrediente quitado de la receta."); } catch (error) { flash(error.message); }
+      render();
+      return;
+    }
     if (button.dataset.logout !== undefined) { Cloud.logout(); flash("Sesión cerrada. Los cambios vuelven a guardarse solo en este dispositivo."); render(); return; }
     if (button.dataset.moveCategory) {
       if (!isCloudConnected() || !["admin", "manager"].includes(session()?.user?.role)) { flash("Inicia sesión como administrador para ordenar familias."); render(); return; }
@@ -341,7 +385,52 @@
     const input = root.querySelector("[data-search-products]");
     if (input) { input.focus(); input.setSelectionRange(state.search.length, state.search.length); }
   });
+  root.addEventListener("change", (event) => {
+    if (!event.target.matches("[data-recipe-product]")) return;
+    state.recipeProductId = event.target.value;
+    render();
+  });
   root.addEventListener("submit", (event) => {
+    if (event.target.matches("[data-cost-settings-form]")) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      Cloud.updateCostingSettings({ salesVatPercent: Number(form.get("salesVatPercent")), targetMarginPercent: Number(form.get("targetMarginPercent")), overheadPerServingCents: Math.round(Number(form.get("overheadPerServing")) * 100), labourPerServingCents: Math.round(Number(form.get("labourPerServing")) * 100) })
+        .then(async () => { await refreshCloudProduction(); flash("Reglas de coste guardadas."); render(); })
+        .catch((error) => { flash(error.message); render(); });
+      return;
+    }
+    if (event.target.matches("[data-ingredient-create-form]")) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      Cloud.createIngredient({ name: form.get("name"), baseUnit: form.get("baseUnit"), packQuantity: Number(form.get("packQuantity")), packPriceCents: Math.round(Number(form.get("packPrice")) * 100), purchaseVatPercent: Number(form.get("purchaseVatPercent")), stockQuantity: Number(form.get("stockQuantity")), minimumStockQuantity: Number(form.get("minimumStockQuantity")), supplier: form.get("supplier") })
+        .then(async () => { await refreshCloudProduction(); flash("Materia prima creada."); render(); })
+        .catch((error) => { flash(error.message); render(); });
+      return;
+    }
+    if (event.target.matches("[data-ingredient-update-form]")) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      Cloud.updateIngredient({ id: form.get("id"), packQuantity: Number(form.get("packQuantity")), packPriceCents: Math.round(Number(form.get("packPrice")) * 100), purchaseVatPercent: Number(form.get("purchaseVatPercent")), stockQuantity: Number(form.get("stockQuantity")), minimumStockQuantity: Number(form.get("minimumStockQuantity")), supplier: form.get("supplier") })
+        .then(async () => { await refreshCloudProduction(); flash("Materia prima actualizada."); render(); })
+        .catch((error) => { flash(error.message); render(); });
+      return;
+    }
+    if (event.target.matches("[data-recipe-config-form]")) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      Cloud.configureRecipe({ productId: form.get("productId"), yieldQuantity: Number(form.get("yieldQuantity")), directCostCents: Math.round(Number(form.get("directCost")) * 100) })
+        .then(async () => { await refreshCloudProduction(); flash("Parámetros de receta guardados."); render(); })
+        .catch((error) => { flash(error.message); render(); });
+      return;
+    }
+    if (event.target.matches("[data-recipe-line-form]")) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      Cloud.addRecipeLine({ productId: form.get("productId"), ingredientId: form.get("ingredientId"), quantity: Number(form.get("quantity")), wastePercent: Number(form.get("wastePercent")) })
+        .then(async () => { await refreshCloudProduction(); flash("Ingrediente añadido a la receta."); render(); })
+        .catch((error) => { flash(error.message); render(); });
+      return;
+    }
     if (event.target.matches("[data-login-form]")) {
       event.preventDefault();
       const form = new FormData(event.target);
@@ -355,6 +444,7 @@
           await refreshCloudCash();
           await refreshCloudShiftHistory();
           await refreshCloudTableHistory();
+          await refreshCloudProduction();
           state.loginOpen = false;
           flash("Sesión iniciada. Las mesas ya usan la base central.");
           render();
@@ -459,7 +549,7 @@
     render();
   });
   if (isCloudConnected()) {
-    Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales(), refreshCloudStaff(), refreshCloudCash(), refreshCloudShiftHistory(), refreshCloudTableHistory()]).then(render).catch(() => {});
-    window.setInterval(() => Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales(), refreshCloudCash(), refreshCloudShiftHistory(), refreshCloudTableHistory()]).then(render).catch(() => {}), 15000);
+    Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales(), refreshCloudStaff(), refreshCloudCash(), refreshCloudShiftHistory(), refreshCloudTableHistory(), refreshCloudProduction()]).then(render).catch(() => {});
+    window.setInterval(() => Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales(), refreshCloudCash(), refreshCloudShiftHistory(), refreshCloudTableHistory(), refreshCloudProduction()]).then(render).catch(() => {}), 15000);
   }
 })();
