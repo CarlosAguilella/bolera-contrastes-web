@@ -185,36 +185,36 @@
   }
 
   async function loadProduction() {
-    return request("tpv-production");
+    return request("tpv-products?scope=production");
   }
 
   async function createIngredient(input) {
-    const result = await request("tpv-production", { method: "POST", body: JSON.stringify({ action: "ingredient_create", ...input }) });
+    const result = await request("tpv-products", { method: "POST", body: JSON.stringify({ action: "ingredient_create", ...input }) });
     return result.ingredient;
   }
 
   async function updateIngredient(input) {
-    const result = await request("tpv-production", { method: "PATCH", body: JSON.stringify({ action: "ingredient_update", ...input }) });
+    const result = await request("tpv-products", { method: "PATCH", body: JSON.stringify({ action: "ingredient_update", ...input }) });
     return result.ingredient;
   }
 
   async function updateCostingSettings(input) {
-    const result = await request("tpv-production", { method: "PATCH", body: JSON.stringify({ action: "settings_update", ...input }) });
+    const result = await request("tpv-products", { method: "PATCH", body: JSON.stringify({ action: "settings_update", ...input }) });
     return result.settings;
   }
 
   async function configureRecipe(input) {
-    const result = await request("tpv-production", { method: "PATCH", body: JSON.stringify({ action: "recipe_configure", ...input }) });
+    const result = await request("tpv-products", { method: "PATCH", body: JSON.stringify({ action: "recipe_configure", ...input }) });
     return result.recipe;
   }
 
   async function addRecipeLine(input) {
-    const result = await request("tpv-production", { method: "POST", body: JSON.stringify({ action: "recipe_line_add", ...input }) });
+    const result = await request("tpv-products", { method: "POST", body: JSON.stringify({ action: "recipe_line_add", ...input }) });
     return result.line;
   }
 
   async function deleteRecipeLine(id) {
-    return request("tpv-production", { method: "DELETE", body: JSON.stringify({ action: "recipe_line_delete", id }) });
+    return request("tpv-products", { method: "DELETE", body: JSON.stringify({ action: "recipe_line_delete", id }) });
   }
 
   async function openOrder(tableNumber) {
