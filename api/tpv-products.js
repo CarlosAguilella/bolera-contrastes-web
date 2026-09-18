@@ -47,6 +47,22 @@ async function recipeForProduct(config, productId) {
   return Array.isArray(rows) ? rows[0] || null : null;
 }
 
+async function accountingData(config) {
+  const invoices = await supabaseRequest(config, "supplier_invoices?select=*,supplier_invoice_lines(*)&order=invoice_date.desc,created_at.desc&limit=100", { method: "GET" });
+  return Array.isArray(invoices) ? invoices : [];
+}
+
+function invoiceLines(lines) {
+  if (!Array.isArray(lines) || !lines.length || lines.length > 150) throw Object.assign(new Error("Incluye al menos una línea de factura válida."), { statusCode: 400 });
+  return lines.map((line) => {
+    const productName = cleanText(line.productName, 240);
+    const quantity = decimal(line.quantity, "cantidad", 0.001);
+    const unitPriceCents = cents(line.unitPriceCents, "precio unitario");
+    if (!productName) throw Object.assign(new Error("Falta el nombre de un producto de la factura."), { statusCode: 400 });
+    return { product_code: cleanText(line.productCode, 100) || null, product_name: productName, quantity, unit: cleanText(line.unit, 30) || null, unit_price_cents: unitPriceCents, line_total_cents: Math.round(quantity * unitPriceCents), vat_percent: decimal(line.vatPercent, "IVA", 0, 100) };
+  });
+}
+
 module.exports = async function handler(req, res) {
   try {
     const config = requireConfig(getConfig());
@@ -56,6 +72,10 @@ module.exports = async function handler(req, res) {
       if (req.query?.scope === "production") {
         requireRoles(req, ["admin", "manager"]);
         return res.status(200).json({ ok: true, ...(await productionData(config)) });
+      }
+      if (req.query?.scope === "accounting") {
+        requireRoles(req, ["admin", "manager"]);
+        return res.status(200).json({ ok: true, invoices: await accountingData(config) });
       }
       const includeInactive = String(req.query?.includeInactive || "") === "true";
       return res.status(200).json({ ok: true, products: await listProducts(config, includeInactive) });
@@ -106,6 +126,20 @@ module.exports = async function handler(req, res) {
       if (!id) return res.status(400).json({ ok: false, error: "Línea de receta no válida." });
       await supabaseRequest(config, `recipe_ingredients?id=eq.${encodeURIComponent(id)}`, { method: "DELETE", headers: { Prefer: "return=minimal" } });
       return res.status(200).json({ ok: true });
+    }
+    if (req.method === "POST" && body.action === "invoice_create") {
+      const supplierName = cleanText(body.supplierName, 160);
+      const invoiceNumber = cleanText(body.invoiceNumber, 100) || null;
+      const invoiceDate = cleanText(body.invoiceDate, 20);
+      if (!supplierName || !/^\d{4}-\d{2}-\d{2}$/.test(invoiceDate)) return res.status(400).json({ ok: false, error: "Indica proveedor y fecha de factura." });
+      const lines = invoiceLines(body.lines);
+      const subtotalCents = lines.reduce((total, line) => total + line.line_total_cents, 0);
+      const vatCents = Math.round(lines.reduce((total, line) => total + line.line_total_cents * line.vat_percent / 100, 0));
+      const rows = await supabaseRequest(config, "supplier_invoices", { method: "POST", body: JSON.stringify({ supplier_name: supplierName, invoice_number: invoiceNumber, invoice_date: invoiceDate, subtotal_cents: subtotalCents, vat_cents: vatCents, total_cents: subtotalCents + vatCents, classification_status: "manual", source_text: cleanText(body.sourceText, 12000) || null, created_by: session.sub }) });
+      const invoice = Array.isArray(rows) ? rows[0] : rows;
+      await supabaseRequest(config, "supplier_invoice_lines", { method: "POST", body: JSON.stringify(lines.map((line) => ({ ...line, invoice_id: invoice.id }))), headers: { Prefer: "return=minimal" } });
+      await audit(config, session.sub, "supplier_invoices", invoice.id, "create", { supplierName, lines: lines.length });
+      return res.status(201).json({ ok: true, invoice });
     }
     if (req.method === "PATCH" && body.action === "reorder_categories") {
       const categoryIds = Array.isArray(body.categoryIds) ? body.categoryIds.map((id) => cleanText(id, 80)).filter(Boolean) : [];

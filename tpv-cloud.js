@@ -217,6 +217,16 @@
     return request("tpv-products", { method: "DELETE", body: JSON.stringify({ action: "recipe_line_delete", id }) });
   }
 
+  async function loadAccounting() {
+    const result = await request("tpv-products?scope=accounting");
+    return result.invoices || [];
+  }
+
+  async function createSupplierInvoice(input) {
+    const result = await request("tpv-products", { method: "POST", body: JSON.stringify({ action: "invoice_create", ...input }) });
+    return result.invoice;
+  }
+
   async function openOrder(tableNumber) {
     const result = await request("tpv-orders", { method: "POST", body: JSON.stringify({ tableNumber }) });
     return result.order;
@@ -264,6 +274,7 @@
     createProduct,
     createStaff,
     createIngredient,
+    createSupplierInvoice,
     createTable,
     deleteTable,
     getSession,
@@ -279,6 +290,7 @@
     loadStaff,
     loadTableHistory,
     loadProduction,
+    loadAccounting,
     logout,
     request,
     reorderCategories,
