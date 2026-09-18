@@ -227,6 +227,22 @@
     return result.invoice;
   }
 
+  async function uploadSupplierInvoiceFile(file) {
+    const contentBase64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || "").split(",").pop());
+      reader.onerror = () => reject(new Error("No se pudo leer el archivo."));
+      reader.readAsDataURL(file);
+    });
+    const result = await request("tpv-products", { method: "POST", body: JSON.stringify({ action: "invoice_file_upload", fileName: file.name, mimeType: file.type, contentBase64 }) });
+    return result;
+  }
+
+  async function getSupplierInvoiceFileUrl(invoiceId) {
+    const result = await request(`tpv-products?scope=invoice_file&invoiceId=${encodeURIComponent(invoiceId)}`);
+    return result.url;
+  }
+
   async function openOrder(tableNumber) {
     const result = await request("tpv-orders", { method: "POST", body: JSON.stringify({ tableNumber }) });
     return result.order;
@@ -291,6 +307,8 @@
     loadTableHistory,
     loadProduction,
     loadAccounting,
+    uploadSupplierInvoiceFile,
+    getSupplierInvoiceFileUrl,
     logout,
     request,
     reorderCategories,

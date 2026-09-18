@@ -52,6 +52,29 @@ async function accountingData(config) {
   return Array.isArray(invoices) ? invoices : [];
 }
 
+async function storageRequest(config, path, options = {}) {
+  const response = await fetch(`${config.supabaseUrl}/storage/v1/${path}`, {
+    ...options,
+    headers: { apikey: config.supabaseServiceRoleKey, Authorization: `Bearer ${config.supabaseServiceRoleKey}`, ...(options.headers || {}) },
+  });
+  const text = await response.text();
+  let body = null;
+  try { body = text ? JSON.parse(text) : null; } catch (error) { body = { message: text }; }
+  if (!response.ok) throw Object.assign(new Error(body?.message || "No se pudo guardar el archivo."), { statusCode: response.status });
+  return body;
+}
+
+function invoiceFile(body) {
+  const fileName = cleanText(body.fileName, 180).replace(/[^a-zA-Z0-9._-]/g, "_");
+  const mimeType = cleanText(body.mimeType, 80);
+  const allowed = new Set(["application/pdf", "image/jpeg", "image/png"]);
+  if (!fileName || !allowed.has(mimeType)) throw Object.assign(new Error("Solo se permiten PDF, JPG o PNG."), { statusCode: 400 });
+  const content = String(body.contentBase64 || "").replace(/^data:[^;]+;base64,/, "");
+  const buffer = Buffer.from(content, "base64");
+  if (!buffer.length || buffer.length > 6 * 1024 * 1024) throw Object.assign(new Error("El archivo debe ocupar menos de 6 MB."), { statusCode: 400 });
+  return { fileName, mimeType, buffer };
+}
+
 function invoiceLines(lines) {
   if (!Array.isArray(lines) || !lines.length || lines.length > 150) throw Object.assign(new Error("Incluye al menos una línea de factura válida."), { statusCode: 400 });
   return lines.map((line) => {
@@ -76,6 +99,17 @@ module.exports = async function handler(req, res) {
       if (req.query?.scope === "accounting") {
         requireRoles(req, ["admin", "manager"]);
         return res.status(200).json({ ok: true, invoices: await accountingData(config) });
+      }
+      if (req.query?.scope === "invoice_file") {
+        requireRoles(req, ["admin", "manager"]);
+        const invoiceId = cleanText(req.query?.invoiceId, 80);
+        const rows = await supabaseRequest(config, `supplier_invoices?id=eq.${encodeURIComponent(invoiceId)}&select=source_file_path&limit=1`, { method: "GET" });
+        const sourcePath = Array.isArray(rows) ? rows[0]?.source_file_path : null;
+        if (!sourcePath) return res.status(404).json({ ok: false, error: "Esta factura no tiene archivo adjunto." });
+        const signed = await storageRequest(config, `object/sign/supplier-invoices/${encodeURIComponent(sourcePath)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expiresIn: 900 }) });
+        const signedPath = signed?.signedURL || signed?.signedUrl;
+        if (!signedPath) throw new Error("No se pudo abrir el archivo.");
+        return res.status(200).json({ ok: true, url: `${config.supabaseUrl}/storage/v1${signedPath}` });
       }
       const includeInactive = String(req.query?.includeInactive || "") === "true";
       return res.status(200).json({ ok: true, products: await listProducts(config, includeInactive) });
@@ -131,15 +165,23 @@ module.exports = async function handler(req, res) {
       const supplierName = cleanText(body.supplierName, 160);
       const invoiceNumber = cleanText(body.invoiceNumber, 100) || null;
       const invoiceDate = cleanText(body.invoiceDate, 20);
+      const sourceFilePath = cleanText(body.sourceFilePath, 500) || null;
       if (!supplierName || !/^\d{4}-\d{2}-\d{2}$/.test(invoiceDate)) return res.status(400).json({ ok: false, error: "Indica proveedor y fecha de factura." });
-      const lines = invoiceLines(body.lines);
+      const lines = Array.isArray(body.lines) && body.lines.length ? invoiceLines(body.lines) : [];
+      if (!lines.length && !sourceFilePath) return res.status(400).json({ ok: false, error: "Incluye líneas de factura o adjunta un archivo." });
       const subtotalCents = lines.reduce((total, line) => total + line.line_total_cents, 0);
       const vatCents = Math.round(lines.reduce((total, line) => total + line.line_total_cents * line.vat_percent / 100, 0));
-      const rows = await supabaseRequest(config, "supplier_invoices", { method: "POST", body: JSON.stringify({ supplier_name: supplierName, invoice_number: invoiceNumber, invoice_date: invoiceDate, subtotal_cents: subtotalCents, vat_cents: vatCents, total_cents: subtotalCents + vatCents, classification_status: "manual", source_text: cleanText(body.sourceText, 12000) || null, created_by: session.sub }) });
+      const rows = await supabaseRequest(config, "supplier_invoices", { method: "POST", body: JSON.stringify({ supplier_name: supplierName, invoice_number: invoiceNumber, invoice_date: invoiceDate, subtotal_cents: subtotalCents, vat_cents: vatCents, total_cents: subtotalCents + vatCents, classification_status: lines.length ? "manual" : "pending_ai", source_file_name: cleanText(body.sourceFileName, 180) || null, source_file_path: sourceFilePath, source_text: cleanText(body.sourceText, 12000) || null, created_by: session.sub }) });
       const invoice = Array.isArray(rows) ? rows[0] : rows;
       await supabaseRequest(config, "supplier_invoice_lines", { method: "POST", body: JSON.stringify(lines.map((line) => ({ ...line, invoice_id: invoice.id }))), headers: { Prefer: "return=minimal" } });
       await audit(config, session.sub, "supplier_invoices", invoice.id, "create", { supplierName, lines: lines.length });
       return res.status(201).json({ ok: true, invoice });
+    }
+    if (req.method === "POST" && body.action === "invoice_file_upload") {
+      const file = invoiceFile(body);
+      const path = `${new Date().toISOString().slice(0, 10)}/${Date.now()}-${file.fileName}`;
+      await storageRequest(config, `object/supplier-invoices/${encodeURIComponent(path)}`, { method: "POST", headers: { "Content-Type": file.mimeType, "x-upsert": "false" }, body: file.buffer });
+      return res.status(201).json({ ok: true, path, fileName: file.fileName });
     }
     if (req.method === "PATCH" && body.action === "reorder_categories") {
       const categoryIds = Array.isArray(body.categoryIds) ? body.categoryIds.map((id) => cleanText(id, 80)).filter(Boolean) : [];

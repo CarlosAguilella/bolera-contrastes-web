@@ -371,6 +371,10 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .tpv-invoice-form__wide { grid-column: 1 / -1; }
 .tpv-invoice-form small { color: var(--tpv-muted); font-size: 10px; font-weight: 500; letter-spacing: 0; text-transform: none; }
 .tpv-invoice-form .tpv-action { width: fit-content; }
+.tpv-invoice-upload { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(0, 1.7fr) auto; align-items: end; gap: 12px; padding: 0 20px 20px; }
+.tpv-invoice-upload label { display: grid; gap: 5px; color: var(--tpv-muted); font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.tpv-invoice-upload input { min-width: 0; padding: 8px; border: 1px dashed #bdbdb8; border-radius: 8px; background: #fafaf8; font: inherit; }
+.tpv-invoice-upload small { color: var(--tpv-muted); font-size: 11px; line-height: 1.4; }
 .tpv-invoice-list { display: grid; gap: 12px; padding: 20px; }
 .tpv-invoice-list article { overflow: hidden; border: 1px solid var(--tpv-line); border-radius: 12px; }
 .tpv-invoice-list article > header, .tpv-invoice-list article > footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 15px; background: #fafaf8; }
@@ -614,6 +618,7 @@ button:disabled { cursor: not-allowed; opacity: .48; }
   .tpv-ingredients-list, .tpv-recipe-lines { padding-inline: 14px; }
   .tpv-recipe-selector { align-items: stretch; flex-direction: column; padding: 0 14px 14px; }
   .tpv-invoice-form { grid-template-columns: 1fr; padding: 0 14px 14px; }
+  .tpv-invoice-upload { grid-template-columns: 1fr; padding: 0 14px 14px; }
   .tpv-invoice-list { padding: 14px; }
 }
 
