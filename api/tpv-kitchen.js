@@ -31,7 +31,7 @@ module.exports = async function handler(req, res) {
       }
       const rows = await supabaseRequest(config, `kitchen_orders?order_id=eq.${encodeURIComponent(String(body.orderId || "").trim())}`, {
         method: "PATCH",
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, ...(status === "ready" ? { ready_at: new Date().toISOString() } : {}) }),
       });
       const order = Array.isArray(rows) ? rows[0] : rows;
       if (!order) return res.status(404).json({ ok: false, error: "Comanda de cocina no encontrada." });

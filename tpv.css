@@ -97,6 +97,7 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .tpv-order > .tpv-panel, .tpv-category-filter, .tpv-catalog { min-width: 0; }
 .tpv-catalog { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 18px; }
 .tpv-product { display: grid; min-height: 126px; align-content: space-between; gap: 12px; padding: 15px; border: 1px solid var(--tpv-line); border-radius: 14px; background: var(--tpv-surface); text-align: left; }
+.tpv-product img { width: 42px; height: 42px; object-fit: cover; border-radius: 10px; }
 .tpv-product:hover { border-color: var(--tpv-ink); }
 .tpv-product strong, .tpv-product span, .tpv-product small { display: block; }
 .tpv-product strong { font-size: 15px; line-height: 1.2; }
@@ -714,6 +715,13 @@ button:disabled { cursor: not-allowed; opacity: .48; }
   .tpv-management-sidebar .tpv-brand { display: none; }
   .kitchen-screen-card button { min-height: 44px; }
 }
+
+.tpv-cash-counts { display: grid; gap: 5px; margin: 14px 0; padding: 11px; border-radius: 9px; background: #f7f7f5; color: var(--tpv-muted); font-size: 11px; }
+.tpv-cash-counts b { color: var(--tpv-ink); }
+.tpv-extras-modal { max-width: 620px; }
+.tpv-extras-modal fieldset { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; padding: 10px; border: 1px solid var(--tpv-line); border-radius: 9px; }
+.tpv-extras-modal legend { padding: 0 4px; color: var(--tpv-muted); font-size: 11px; font-weight: 800; }
+.tpv-extras-modal fieldset label { display: flex; align-items: center; gap: 5px; margin: 0; font-size: 12px; }
 
 @media (max-device-width: 700px), (hover: none) and (pointer: coarse) {
   .tpv-app { grid-template-columns: 1fr; }

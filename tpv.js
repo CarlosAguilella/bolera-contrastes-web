@@ -4,7 +4,7 @@
   const root = document.getElementById("tpv-root");
   if (!Core || !root) return;
 
-  const state = { page: "sala", selectedTableId: null, category: "all", modal: null, loginUsername: "carlos", toast: null, cashSession: null, shift: null, data: Core.loadData() };
+  const state = { page: "sala", selectedTableId: null, category: "all", modal: null, extraProductId: null, loginUsername: "carlos", toast: null, cashSession: null, paymentMethods: [], shift: null, data: Core.loadData() };
   let toastTimer = null;
   const orderSyncQueues = new Map();
 
@@ -22,6 +22,10 @@
     if (!isCloudConnected()) return;
     try { state.cashSession = await Cloud.loadCashSession(); } catch (error) { state.cashSession = null; }
   }
+  async function refreshPaymentMethods() {
+    if (!isCloudConnected()) return;
+    try { state.paymentMethods = await Cloud.loadPaymentMethods(); } catch (error) { state.paymentMethods = []; }
+  }
   async function refreshShift() {
     if (!isCloudConnected()) return;
     try { state.shift = await Cloud.loadShift(); } catch (error) { state.shift = null; }
@@ -36,7 +40,7 @@
   }
   function linesFromRemote(items) {
     const externalIds = productExternalIds();
-    return (items || []).map((item) => ({ productId: externalIds[item.product_id] || item.productId, qty: Number(item.quantity || item.qty || 0) })).filter((line) => line.productId && line.qty > 0);
+    return (items || []).map((item) => ({ productId: externalIds[item.product_id] || item.productId, qty: Number(item.quantity || item.qty || 0), modifiers: item.modifiers || [] })).filter((line) => line.productId && line.qty > 0);
   }
   function queueOrderSave(tableId) {
     const ticket = state.data.tables[tableId];
@@ -128,12 +132,13 @@
       }
     }
   }
-  async function changeLine(productId, amount) {
+  async function changeLine(productId, amount, modifiers = [], lineIndex = null) {
     const ticket = state.data.tables[state.selectedTableId];
     if (!ticket) return;
-    const line = ticket.lines.find((item) => item.productId === productId);
+    const line = lineIndex === null ? ticket.lines.find((item) => item.productId === productId && JSON.stringify(item.modifiers || []) === JSON.stringify(modifiers)) : ticket.lines[lineIndex];
+    if (lineIndex !== null) productId = line?.productId;
     const quantity = Math.max(0, Number(line?.qty || 0) + amount);
-    if (!line && quantity) ticket.lines.push({ productId, qty: quantity });
+    if (!line && quantity) ticket.lines.push({ productId, qty: quantity, modifiers });
     if (line && quantity) line.qty = quantity;
     if (line && !quantity) ticket.lines = ticket.lines.filter((item) => item.productId !== productId);
     save();
@@ -199,14 +204,14 @@
     customer.duros = Number(customer.duros || 0) + duros;
     return { customer, duros };
   }
-  async function pay(method, customerId) {
+  async function pay(method, customerId, paymentMethodId) {
     const ticket = state.data.tables[state.selectedTableId];
     if (!ticket?.lines.length) { flash("Añade algún producto antes de cobrar."); render(); return; }
     const totalCents = total(ticket.lines);
     if (isCloudConnected()) {
       try {
         await queueOrderSave(state.selectedTableId);
-        await Cloud.payOrder(ticket.cloudOrderId, method, ticket.lines);
+        await Cloud.payOrder(ticket.cloudOrderId, method, ticket.lines, paymentMethodId);
         await refreshCashSession();
       } catch (error) {
         flash(error.message);
@@ -248,7 +253,7 @@
   }
   function ticketView(ticket) {
     const lines = ticket.lines || [];
-    return `<aside class="tpv-ticket"><div class="tpv-ticket__head"><strong>Mesa ${state.selectedTableId}</strong><small>${lineCount(lines)} productos · abierta ${timeSince(ticket.openedAt)}</small></div>${lines.length ? `<ul class="tpv-ticket__items">${lines.map((line) => { const item = product(line.productId); return `<li><div><strong>${escapeHtml(item?.name || "Producto")}</strong><small>${Core.formatEuros(item?.priceCents || 0)} unidad</small></div><div><b>${Core.formatEuros((item?.priceCents || 0) * line.qty)}</b><div class="tpv-qty"><button type="button" data-change-line="${line.productId}" data-amount="-1">−</button><span>${line.qty}</span><button type="button" data-change-line="${line.productId}" data-amount="1">+</button></div></div></li>`; }).join("")}</ul>` : `<div class="tpv-ticket__empty">Aún no hay productos. Selecciónalos de la carta.</div>`}<div class="tpv-ticket__total"><span>Total</span><strong>${Core.formatEuros(total(lines))}</strong></div><div class="tpv-ticket__actions"><button type="button" class="tpv-action is-secondary" data-send-kitchen="true">Enviar cocina</button><button type="button" class="tpv-action" data-open-payment="true" ${lines.length ? "" : "disabled"}>Cobrar mesa</button></div></aside>`;
+    return `<aside class="tpv-ticket"><div class="tpv-ticket__head"><strong>Mesa ${state.selectedTableId}</strong><small>${lineCount(lines)} productos · abierta ${timeSince(ticket.openedAt)}</small></div>${lines.length ? `<ul class="tpv-ticket__items">${lines.map((line, index) => { const item = product(line.productId); return `<li><div><strong>${escapeHtml(item?.name || "Producto")}</strong><small>${line.modifiers?.length ? `${escapeHtml(line.modifiers.join(" · "))} · ` : ""}${Core.formatEuros(item?.priceCents || 0)} unidad</small></div><div><b>${Core.formatEuros((item?.priceCents || 0) * line.qty)}</b><div class="tpv-qty"><button type="button" data-change-line="${index}" data-amount="-1">−</button><span>${line.qty}</span><button type="button" data-change-line="${index}" data-amount="1">+</button></div></div></li>`; }).join("")}</ul>` : `<div class="tpv-ticket__empty">Aún no hay productos. Selecciónalos de la carta.</div>`}<div class="tpv-ticket__total"><span>Total</span><strong>${Core.formatEuros(total(lines))}</strong></div><div class="tpv-ticket__actions"><button type="button" class="tpv-action is-secondary" data-send-kitchen="true">Enviar cocina</button><button type="button" class="tpv-action" data-open-payment="true" ${lines.length ? "" : "disabled"}>Cobrar mesa</button></div></aside>`;
   }
   function renderOrder() {
     const ticket = state.data.tables[state.selectedTableId];
@@ -256,7 +261,7 @@
     const catalog = Core.getProducts(state.data);
     const categories = [{ id: "all", label: "Todo" }, ...Array.from(new Map(catalog.map((item) => [item.categoryId, { id: item.categoryId, label: item.category }])).values())];
     const visible = catalog.filter((item) => state.category === "all" || item.categoryId === state.category);
-    return `${topbar(`Mesa ${state.selectedTableId}`, "Añade productos y envía la comanda cuando esté lista")}<div class="tpv-order"><section class="tpv-panel"><div class="tpv-panel__head"><div><h2>Carta completa</h2><span>${visible.length} productos disponibles</span></div><button class="tpv-action is-secondary" type="button" data-nav="sala">Volver a sala</button></div><div class="tpv-category-filter">${categories.map((category) => `<button type="button" class="${state.category === category.id ? "is-active" : ""}" data-category="${category.id}">${escapeHtml(category.label)}</button>`).join("")}</div><div class="tpv-catalog">${visible.map((item) => { const detail = item.description && item.description !== item.category ? `<small>${escapeHtml(item.description)}</small>` : ""; return `<article class="tpv-product">${item.image ? `<img src="${escapeHtml(item.image)}" alt="" loading="lazy">` : ""}<div class="tpv-product__copy"><strong>${escapeHtml(item.name)}</strong><span class="tpv-product__family">${escapeHtml(item.category)}</span>${detail}</div><div class="tpv-product__bottom"><span class="tpv-product__price">${Core.formatEuros(item.priceCents)}</span><button type="button" class="tpv-add" data-add-product="${item.id}">Añadir</button></div></article>`; }).join("")}</div></section>${ticketView(ticket)}</div>`;
+    return `${topbar(`Mesa ${state.selectedTableId}`, "Añade productos y envía la comanda cuando esté lista")}<div class="tpv-order"><section class="tpv-panel"><div class="tpv-panel__head"><div><h2>Carta completa</h2><span>${visible.length} productos disponibles</span></div><button class="tpv-action is-secondary" type="button" data-nav="sala">Volver a sala</button></div><div class="tpv-category-filter">${categories.map((category) => `<button type="button" class="${state.category === category.id ? "is-active" : ""}" data-category="${category.id}">${escapeHtml(category.label)}</button>`).join("")}</div><div class="tpv-catalog">${visible.map((item) => { const detail = item.description && item.description !== item.category ? `<small>${escapeHtml(item.description)}</small>` : ""; return `<article class="tpv-product">${item.image ? `<img src="${escapeHtml(item.image)}" alt="" loading="lazy">` : ""}<div class="tpv-product__copy"><strong>${escapeHtml(item.name)}</strong>${detail}</div><div class="tpv-product__bottom"><span class="tpv-product__price">${Core.formatEuros(item.priceCents)}</span><button type="button" class="tpv-add" data-add-product="${item.id}">Añadir</button></div></article>`; }).join("")}</div></section>${ticketView(ticket)}</div>`;
   }
   function kitchenCard(order) {
     const actions = order.status === "pending" ? `<button type="button" data-kitchen-order="${order.id}" data-kitchen-status="preparing">Empezar</button>` : order.status === "preparing" ? `<button type="button" data-kitchen-order="${order.id}" data-kitchen-status="ready">Marcar lista</button>` : `<button type="button" data-kitchen-order="${order.id}" data-kitchen-status="delivered">Entregada</button>`;
@@ -278,19 +283,28 @@
     let operations = "";
     if (!isCloudConnected()) operations = `<p>Inicia sesión para gestionar la caja central.</p>`;
     else if (!state.cashSession) operations = canManageCash() ? `<p>Abre el turno antes de registrar movimientos o realizar el cierre.</p><button type="button" class="tpv-action" data-open-cash>Abrir caja</button>` : `<p>No hay caja abierta. Un administrador debe abrir el turno.</p>`;
-    else operations = `<div class="tpv-cash-expected"><span>Efectivo esperado</span><strong>${Core.formatEuros(summary.expectedCashCents)}</strong><small>Fondo ${Core.formatEuros(state.cashSession.opening_float_cents)} · movimientos ${summary.movementCents >= 0 ? "+" : ""}${Core.formatEuros(summary.movementCents)}</small></div>${canManageCash() ? `<div class="tpv-cash-actions"><button type="button" class="tpv-action is-secondary" data-cash-movement>Entrada / salida</button><button type="button" class="tpv-action" data-close-cash>Cerrar turno</button></div>` : `<p>Solo administración puede realizar movimientos o cerrar turno.</p>`}${movements.length ? `<ul class="tpv-cash-movements">${movements.map((movement) => `<li><span>${movement.movement_type === "in" ? "Entrada" : "Salida"} · ${escapeHtml(movement.reason)}</span><b class="${movement.movement_type === "out" ? "is-out" : ""}">${movement.movement_type === "out" ? "−" : "+"}${Core.formatEuros(movement.amount_cents)}</b></li>`).join("")}</ul>` : `<p class="tpv-cash-empty">No hay movimientos manuales.</p>`}`;
+    else operations = `<div class="tpv-cash-expected"><span>Efectivo esperado</span><strong>${Core.formatEuros(summary.expectedCashCents)}</strong><small>Fondo ${Core.formatEuros(state.cashSession.opening_float_cents)} · movimientos ${summary.movementCents >= 0 ? "+" : ""}${Core.formatEuros(summary.movementCents)}</small></div>${canManageCash() ? `<div class="tpv-cash-actions"><button type="button" class="tpv-action is-secondary" data-cash-movement>Entrada / salida</button><button type="button" class="tpv-action is-secondary" data-cash-count>Arqueo</button><button type="button" class="tpv-action is-secondary" data-add-card>Nueva tarjeta</button><button type="button" class="tpv-action" data-close-cash>Cerrar turno</button></div>` : `<p>Solo administración puede realizar movimientos, arqueos o cerrar turno.</p>`}${summary.counts?.length ? `<div class="tpv-cash-counts"><b>Últimos arqueos</b>${summary.counts.slice(0, 3).map((count) => `<span>${new Date(count.created_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })} · ${Core.formatEuros(count.counted_cash_cents)} (${Number(count.difference_cents) === 0 ? "cuadra" : Core.formatEuros(count.difference_cents)})</span>`).join("")}</div>` : ""}${movements.length ? `<ul class="tpv-cash-movements">${movements.map((movement) => `<li><span>${movement.movement_type === "in" ? "Entrada" : "Salida"} · ${escapeHtml(movement.reason)}</span><b class="${movement.movement_type === "out" ? "is-out" : ""}">${movement.movement_type === "out" ? "−" : "+"}${Core.formatEuros(movement.amount_cents)}</b></li>`).join("")}</ul>` : `<p class="tpv-cash-empty">No hay movimientos manuales.</p>`}`;
     return `${topbar("Caja", status)}<section class="tpv-cash"><div><div class="tpv-cash__summary"><article class="tpv-metric"><span>Ventas del turno</span><strong>${Core.formatEuros(card + cash)}</strong></article><article class="tpv-metric"><span>Tarjeta</span><strong>${Core.formatEuros(card)}</strong></article><article class="tpv-metric"><span>Efectivo</span><strong>${Core.formatEuros(cash)}</strong></article></div><section class="tpv-panel tpv-open-bills"><div class="tpv-panel__head"><div><h2>Mesas pendientes de cobro</h2><span>Selecciona una para abrir la cuenta</span></div></div>${Object.keys(state.data.tables).length ? Object.keys(state.data.tables).map((tableId) => { const ticket = state.data.tables[tableId]; return `<div class="tpv-bill"><div><strong>Mesa ${tableId}</strong><small>${lineCount(ticket.lines)} productos · ${timeSince(ticket.openedAt)}</small></div><span class="tpv-bill__amount">${Core.formatEuros(total(ticket.lines))}</span><button type="button" class="tpv-action is-secondary" data-open-table="${tableId}">Abrir</button></div>`; }).join("") : `<p class="tpv-ticket__empty">No hay mesas abiertas.</p>`}</section></div><aside class="tpv-panel"><div class="tpv-panel__head"><div><h2>Operativa</h2><span>${status}</span></div></div><div class="tpv-insight">${operations}</div></aside></section>`;
   }
   function paymentModal() {
     if (state.modal !== "payment") return "";
     const ticket = state.data.tables[state.selectedTableId];
     const customers = Array.isArray(state.data.loyaltyCustomers) ? state.data.loyaltyCustomers : [];
-    return `<div class="tpv-modal-backdrop"><section class="tpv-modal"><button class="tpv-modal__close" type="button" data-close-modal="true" aria-label="Cerrar">×</button><h2>Cobrar mesa ${state.selectedTableId}</h2><p>Total a registrar: <strong>${Core.formatEuros(total(ticket?.lines || []))}</strong></p>${customers.length ? `<label>Cliente fidelizado<select data-payment-customer><option value="">Sin cliente</option>${customers.map((customer) => `<option value="${escapeHtml(customer.id)}">${escapeHtml(customer.name)} · ${Number(customer.duros || 0)} Duros</option>`).join("")}</select></label><p class="tpv-modal__note">Cada euro completo suma un Duro.</p>` : ""}<div class="tpv-payment-options"><button type="button" data-pay="card"><b>Tarjeta</b><span>Confirmar en TPV bancario</span></button><button type="button" data-pay="cash"><b>Efectivo</b><span>Registrar cobro en caja</span></button></div><p class="tpv-modal__note">El pago con tarjeta se confirma después de cobrarlo en el terminal físico.</p></section></div>`;
+    const cards = state.paymentMethods.filter((item) => item.method_type === "card");
+    return `<div class="tpv-modal-backdrop"><section class="tpv-modal"><button class="tpv-modal__close" type="button" data-close-modal="true" aria-label="Cerrar">×</button><h2>Cobrar mesa ${state.selectedTableId}</h2><p>Total a registrar: <strong>${Core.formatEuros(total(ticket?.lines || []))}</strong></p>${customers.length ? `<label>Cliente fidelizado<select data-payment-customer><option value="">Sin cliente</option>${customers.map((customer) => `<option value="${escapeHtml(customer.id)}">${escapeHtml(customer.name)} · ${Number(customer.duros || 0)} Duros</option>`).join("")}</select></label><p class="tpv-modal__note">Cada euro completo suma un Duro.</p>` : ""}<div class="tpv-payment-options">${cards.map((card) => `<button type="button" data-pay="card" data-payment-method="${card.id}"><b>${escapeHtml(card.name)}</b><span>Confirmar en TPV bancario</span></button>`).join("") || `<button type="button" data-pay="card"><b>Tarjeta</b><span>Confirmar en TPV bancario</span></button>`}<button type="button" data-pay="cash"><b>Efectivo</b><span>Registrar cobro en caja</span></button></div><p class="tpv-modal__note">El pago con tarjeta se confirma después de cobrarlo en el terminal físico.</p></section></div>`;
+  }
+  function extrasModal() {
+    if (state.modal !== "extras") return "";
+    const item = product(state.extraProductId);
+    const groups = [["Punto", ["Muy hecho", "Poco hecho", "Al punto"]], ["Sin", ["Sin tomate", "Sin sal", "Sin cebolla", "Sin picante"]], ["Extras", ["Con aceite", "Con ajoaceite", "Con beicon", "Con huevo", "Con ketchup", "Con mayonesa", "Con mostaza", "Con queso edam", "Con sal", "Con tomate"]], ["Guarnición", ["Ensalada", "Patatas fritas"]]];
+    return `<div class="tpv-modal-backdrop"><form class="tpv-modal tpv-extras-modal" data-extras-form><button class="tpv-modal__close" type="button" data-close-modal aria-label="Cerrar">×</button><h2>${escapeHtml(item?.name || "Artículo")}</h2><p>Personaliza el pedido si hace falta.</p><input type="hidden" name="productId" value="${escapeHtml(state.extraProductId || "")}">${groups.map(([title, choices]) => `<fieldset><legend>${title}</legend>${choices.map((choice) => `<label><input type="checkbox" name="modifier" value="${escapeHtml(choice)}">${escapeHtml(choice)}</label>`).join("")}</fieldset>`).join("")}<div class="tpv-modal__actions"><button class="tpv-action is-secondary" type="button" data-close-modal>Cancelar</button><button class="tpv-action" type="submit">Añadir a mesa</button></div></form></div>`;
   }
   function cashModal() {
     if (!state.modal?.startsWith("cash-")) return "";
     if (state.modal === "cash-open") return `<div class="tpv-modal-backdrop"><form class="tpv-modal" data-cash-open-form><button class="tpv-modal__close" type="button" data-close-modal aria-label="Cerrar">×</button><h2>Abrir caja</h2><p>Introduce el efectivo con el que empieza el turno.</p><label>Fondo inicial (€)<input name="openingFloat" type="number" min="0" step="0.01" required autofocus></label><label>Nota opcional<input name="notes" maxlength="500" placeholder="Ej. Cambio preparado"></label><div class="tpv-modal__actions"><button class="tpv-action is-secondary" type="button" data-close-modal>Cancelar</button><button class="tpv-action" type="submit">Abrir turno</button></div></form></div>`;
     if (state.modal === "cash-movement") return `<div class="tpv-modal-backdrop"><form class="tpv-modal" data-cash-movement-form><button class="tpv-modal__close" type="button" data-close-modal aria-label="Cerrar">×</button><h2>Movimiento de caja</h2><p>Registra una entrada o salida manual de efectivo.</p><label>Tipo<select name="movementType"><option value="out">Salida de efectivo</option><option value="in">Entrada de efectivo</option></select></label><label>Importe (€)<input name="amount" type="number" min="0.01" step="0.01" required></label><label>Motivo<input name="reason" maxlength="240" required placeholder="Ej. Pago a proveedor"></label><div class="tpv-modal__actions"><button class="tpv-action is-secondary" type="button" data-close-modal>Cancelar</button><button class="tpv-action" type="submit">Registrar</button></div></form></div>`;
+    if (state.modal === "cash-count") return `<div class="tpv-modal-backdrop"><form class="tpv-modal" data-cash-count-form><button class="tpv-modal__close" type="button" data-close-modal aria-label="Cerrar">×</button><h2>Arqueo de caja</h2><p>Efectivo esperado ahora: <strong>${Core.formatEuros(state.cashSession?.summary?.expectedCashCents || 0)}</strong>.</p><label>Efectivo contado (€)<input name="countedCash" type="number" min="0" step="0.01" required autofocus></label><label>Observaciones<input name="notes" maxlength="500" placeholder="Opcional"></label><div class="tpv-modal__actions"><button class="tpv-action is-secondary" type="button" data-close-modal>Cancelar</button><button class="tpv-action" type="submit">Guardar arqueo</button></div></form></div>`;
+    if (state.modal === "cash-card") return `<div class="tpv-modal-backdrop"><form class="tpv-modal" data-cash-card-form><button class="tpv-modal__close" type="button" data-close-modal aria-label="Cerrar">×</button><h2>Nueva tarjeta</h2><p>Añade el nombre que aparecerá al cobrar, por ejemplo “TPV Barra” o “Tarjeta terraza”.</p><label>Nombre<input name="name" maxlength="80" required autofocus></label><div class="tpv-modal__actions"><button class="tpv-action is-secondary" type="button" data-close-modal>Cancelar</button><button class="tpv-action" type="submit">Añadir tarjeta</button></div></form></div>`;
     const expected = state.cashSession?.summary?.expectedCashCents || 0;
     return `<div class="tpv-modal-backdrop"><form class="tpv-modal" data-cash-close-form><button class="tpv-modal__close" type="button" data-close-modal aria-label="Cerrar">×</button><h2>Cerrar turno</h2><p>Efectivo esperado: <strong>${Core.formatEuros(expected)}</strong>. Cuenta el efectivo real antes de confirmar.</p><label>Efectivo contado (€)<input name="countedCash" type="number" min="0" step="0.01" required autofocus></label><label>Observaciones<input name="notes" maxlength="500" placeholder="Opcional"></label><div class="tpv-modal__actions"><button class="tpv-action is-secondary" type="button" data-close-modal>Cancelar</button><button class="tpv-action is-danger" type="submit">Cerrar turno</button></div></form></div>`;
   }
@@ -302,7 +316,7 @@
   }
   function render() {
     const view = state.page === "comanda" ? renderOrder() : state.page === "cocina" ? renderKitchen() : state.page === "caja" ? renderCash() : renderFloor();
-    root.innerHTML = `<div class="tpv-app">${sidebar()}<main class="tpv-main">${view}</main>${paymentModal()}${cashModal()}${loginModal()}${state.toast ? `<div class="tpv-toast ${state.toast.tone ? `is-${state.toast.tone}` : ""}">${escapeHtml(state.toast.message)}</div>` : ""}</div>`;
+    root.innerHTML = `<div class="tpv-app">${sidebar()}<main class="tpv-main">${view}</main>${paymentModal()}${cashModal()}${extrasModal()}${loginModal()}${state.toast ? `<div class="tpv-toast ${state.toast.tone ? `is-${state.toast.tone}` : ""}">${escapeHtml(state.toast.message)}</div>` : ""}</div>`;
   }
   root.addEventListener("click", (event) => {
     const button = event.target.closest("button, [data-nav]");
@@ -321,25 +335,34 @@
     if (button.dataset.nav) { state.page = button.dataset.nav; state.selectedTableId = null; state.modal = null; render(); return; }
     if (button.dataset.openTable) { openTable(button.dataset.openTable); return; }
     if (button.dataset.category) { state.category = button.dataset.category; render(); return; }
-    if (button.dataset.addProduct) { changeLine(button.dataset.addProduct, 1); return; }
-    if (button.dataset.changeLine) { changeLine(button.dataset.changeLine, Number(button.dataset.amount)); return; }
+    if (button.dataset.addProduct) { state.extraProductId = button.dataset.addProduct; state.modal = "extras"; render(); return; }
+    if (button.dataset.changeLine) { changeLine(null, Number(button.dataset.amount), [], Number(button.dataset.changeLine)); return; }
     if (button.dataset.sendKitchen) { sendKitchen(); return; }
     if (button.dataset.kitchenOrder) { moveKitchenOrder(button.dataset.kitchenOrder, button.dataset.kitchenStatus); return; }
     if (button.dataset.openCash !== undefined) { state.modal = "cash-open"; render(); return; }
     if (button.dataset.cashMovement !== undefined) { state.modal = "cash-movement"; render(); return; }
+    if (button.dataset.cashCount !== undefined) { state.modal = "cash-count"; render(); return; }
+    if (button.dataset.addCard !== undefined) { state.modal = "cash-card"; render(); return; }
     if (button.dataset.closeCash !== undefined) { state.modal = "cash-close"; render(); return; }
     if (button.dataset.openPayment) { state.modal = "payment"; render(); return; }
     if (button.dataset.closeModal) { state.modal = null; render(); return; }
-    if (button.dataset.pay) { pay(button.dataset.pay, root.querySelector("[data-payment-customer]")?.value); return; }
+    if (button.dataset.pay) { pay(button.dataset.pay, root.querySelector("[data-payment-customer]")?.value, button.dataset.paymentMethod); return; }
     if (button.dataset.resetDemo) resetDemo();
   });
   root.addEventListener("submit", (event) => {
+    if (event.target.matches("[data-extras-form]")) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      state.modal = null;
+      changeLine(String(form.get("productId")), 1, form.getAll("modifier").map(String));
+      return;
+    }
     if (event.target.matches("[data-login-form]")) {
       event.preventDefault();
       const form = new FormData(event.target);
       Cloud.login(state.loginUsername, String(form.get("pin") || ""))
         .then(async () => {
-          await Promise.all([refreshCloudState(), refreshCashSession(), refreshShift()]);
+          await Promise.all([refreshCloudState(), refreshCashSession(), refreshPaymentMethods(), refreshShift()]);
           state.modal = null;
           flash("Sesión iniciada. Las mesas están sincronizadas.", "success");
           render();
@@ -363,6 +386,22 @@
         .catch((error) => { flash(error.message); render(); });
       return;
     }
+    if (event.target.matches("[data-cash-count-form]")) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      Cloud.addCashCount(Math.round(Number(form.get("countedCash")) * 100), String(form.get("notes") || ""))
+        .then((cashSession) => { state.cashSession = cashSession; state.modal = null; flash("Arqueo guardado.", "success"); render(); })
+        .catch((error) => { flash(error.message); render(); });
+      return;
+    }
+    if (event.target.matches("[data-cash-card-form]")) {
+      event.preventDefault();
+      const name = String(new FormData(event.target).get("name") || "");
+      Cloud.createPaymentMethod(name)
+        .then(async () => { await refreshPaymentMethods(); state.modal = null; flash("Tarjeta añadida.", "success"); render(); })
+        .catch((error) => { flash(error.message); render(); });
+      return;
+    }
     if (event.target.matches("[data-cash-close-form]")) {
       event.preventDefault();
       const form = new FormData(event.target);
@@ -373,7 +412,7 @@
   });
   render();
   if (session()) {
-    Promise.all([refreshCloudState(), refreshCashSession(), refreshShift()]).then(render).catch(() => {});
-    window.setInterval(() => Promise.all([refreshCloudState(), refreshCashSession(), refreshShift()]).then(render).catch(() => {}), 15000);
+    Promise.all([refreshCloudState(), refreshCashSession(), refreshPaymentMethods(), refreshShift()]).then(render).catch(() => {});
+    window.setInterval(() => Promise.all([refreshCloudState(), refreshCashSession(), refreshPaymentMethods(), refreshShift()]).then(render).catch(() => {}), 15000);
   }
 })();

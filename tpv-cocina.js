@@ -34,6 +34,15 @@
     const product = Core.getProduct(line.productId, state.data);
     return product?.name || line.name || "Producto";
   }
+  function printOnlineLabels(order) {
+    const units = order.lines.flatMap((line) => Array.from({ length: Number(line.qty || 0) }, () => ({ ...line })));
+    if (!units.length) return;
+    const finishedAt = new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+    const popup = window.open("", "_blank", "width=420,height=620");
+    if (!popup) { flash("Permite las ventanas emergentes para imprimir la etiqueta.", "error"); return; }
+    popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Etiquetas pedido</title><style>@page{size:80mm auto;margin:4mm}body{font-family:Arial;margin:0}.label{page-break-after:always;border-bottom:1px dashed #000;padding:7mm 2mm;min-height:48mm}.label:last-child{page-break-after:auto}h1{margin:0;font-size:24px}p{margin:5px 0;font-size:15px}.count{font-size:28px;font-weight:bold}.muted{font-size:12px;color:#333}</style></head><body>${units.map((line, index) => `<section class="label"><div class="count">${index + 1} de ${units.length}</div><h1>${escapeHtml(productName(line))}</h1>${line.variant ? `<p>${escapeHtml(line.variant)}</p>` : ""}<p><b>${escapeHtml(order.customerName || "Pedido online")}</b></p><p>${escapeHtml(order.deliveryMethod === "delivery" ? order.deliveryDetail || "Domicilio" : "Recogida en local")}</p><p class="muted">Finalizado: ${finishedAt}</p></section>`).join("")}<script>window.onload=()=>window.print()<\/script></body></html>`);
+    popup.document.close();
+  }
   async function refresh() {
     if (!session()) return;
     const products = await Cloud.loadProducts(true);
@@ -45,13 +54,14 @@
       id: order.order_id,
       status: order.status === "paid" ? "pending" : order.status,
       createdAt: order.created_at,
+      readyAt: order.ready_at,
       tableNumber: String(order.raw_payload?.tableNumber || String(order.delivery_detail || "").replace(/\D/g, "") || "—"),
       online: order.source !== "tpv",
       deliveryMethod: order.delivery_method,
       deliveryDetail: order.delivery_detail,
       customerName: order.customer_name,
       customerPhone: order.customer_phone,
-      lines: (order.items || []).map((line) => ({ productId: byDatabaseId[line.productId] || line.productId, name: line.name, qty: Number(line.qty || 0), variant: line.variant })).filter((line) => line.qty > 0),
+      lines: (order.items || []).map((line) => ({ productId: byDatabaseId[line.productId] || line.productId, name: line.name, qty: Number(line.qty || 0), variant: line.variant, modifiers: line.modifiers || [] })).filter((line) => line.qty > 0),
     }));
     if (state.loaded && state.orders.some((order) => !previousIds.has(order.id) && order.status === "pending")) flash("Nueva comanda en cocina.", "alert");
     state.loaded = true;
@@ -59,6 +69,8 @@
   }
   async function changeStatus(orderId, status) {
     try {
+      const order = state.orders.find((item) => item.id === orderId);
+      if (status === "ready" && order?.online) printOnlineLabels(order);
       await Cloud.updateKitchenOrder(orderId, status);
       await refresh();
       flash(status === "ready" ? "Comanda lista para servir." : "Estado actualizado.", "success");
@@ -78,11 +90,11 @@
       : order.status === "pending"
       ? ["preparing", "Empezar preparación"]
       : order.status === "preparing"
-        ? ["ready", "Marcar como lista"]
+        ? ["ready", "Hecho"]
         : ["completed", "Entregada"];
     const backAction = order.status === "preparing" ? ["pending", "Volver a pendientes"] : order.status === "ready" ? ["preparing", "Volver a preparación"] : null;
     const onlineDetails = order.online ? `<div class="kitchen-screen-online"><b>Online · ${order.deliveryMethod === "delivery" ? "Domicilio" : "Recogida"}</b><span>${escapeHtml(order.customerName || "Cliente web")}</span>${order.customerPhone ? `<a href="tel:${escapeHtml(order.customerPhone)}">${escapeHtml(order.customerPhone)}</a>` : ""}<small>${escapeHtml(order.deliveryDetail || "Lo antes posible")}</small></div>` : "";
-    return `<article class="kitchen-screen-card ${order.online ? "is-online" : ""} ${isLate(order) ? "is-late" : ""}"><header><div><span>${order.online ? "PEDIDO WEB" : "MESA"}</span><strong>${escapeHtml(order.online ? order.customerName || "Online" : order.tableNumber)}</strong></div><b>${age(order.createdAt)}</b></header>${onlineDetails}<ul>${order.lines.map((line) => `<li><b>${line.qty}×</b><span>${escapeHtml(productName(line))}${line.variant ? `<small>${escapeHtml(line.variant)}</small>` : ""}</span></li>`).join("")}</ul>${canManageKitchen() ? `<div class="kitchen-screen-card__actions">${backAction ? `<button type="button" class="is-secondary" data-kitchen-status="${backAction[0]}" data-kitchen-order="${escapeHtml(order.id)}">${backAction[1]}</button>` : ""}<button type="button" data-kitchen-status="${action[0]}" data-kitchen-order="${escapeHtml(order.id)}">${action[1]}</button></div>` : `<p class="kitchen-screen-card__readonly">Solo cocina o administración puede cambiar el estado.</p>`}</article>`;
+    return `<article class="kitchen-screen-card ${order.online ? "is-online" : ""} ${isLate(order) ? "is-late" : ""}"><header><div><span>${order.online ? "PEDIDO WEB" : "MESA"}</span><strong>${escapeHtml(order.online ? order.customerName || "Online" : order.tableNumber)}</strong></div><b>${order.readyAt ? `Hecho ${new Date(order.readyAt).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}` : age(order.createdAt)}</b></header>${onlineDetails}<ul>${order.lines.map((line) => `<li><b>${line.qty}×</b><span>${escapeHtml(productName(line))}${line.variant ? `<small>${escapeHtml(line.variant)}</small>` : ""}${line.modifiers?.length ? `<small>${escapeHtml(line.modifiers.join(" · "))}</small>` : ""}</span></li>`).join("")}</ul>${canManageKitchen() ? `<div class="kitchen-screen-card__actions">${backAction ? `<button type="button" class="is-secondary" data-kitchen-status="${backAction[0]}" data-kitchen-order="${escapeHtml(order.id)}">${backAction[1]}</button>` : ""}<button type="button" data-kitchen-status="${action[0]}" data-kitchen-order="${escapeHtml(order.id)}">${action[1]}</button>${order.online && order.status === "ready" ? `<button type="button" class="is-secondary" data-print-label="${escapeHtml(order.id)}">Imprimir etiqueta</button>` : ""}</div>` : `<p class="kitchen-screen-card__readonly">Solo cocina o administración puede cambiar el estado.</p>`}</article>`;
   }
   function column(status, title) {
     const orders = state.orders.filter((order) => order.status === status);
@@ -106,6 +118,7 @@
       return;
     }
     if (button.dataset.logout !== undefined) { Cloud.logout(); state.orders = []; state.loaded = false; render(); return; }
+    if (button.dataset.printLabel) { const order = state.orders.find((item) => item.id === button.dataset.printLabel); if (order) printOnlineLabels(order); return; }
     if (button.dataset.kitchenOrder) changeStatus(button.dataset.kitchenOrder, button.dataset.kitchenStatus);
   });
   root.addEventListener("submit", (event) => {

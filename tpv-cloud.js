@@ -133,6 +133,21 @@
     return result.session;
   }
 
+  async function addCashCount(countedCashCents, notes) {
+    const result = await request("tpv-orders", { method: "POST", body: JSON.stringify({ action: "cash_count", countedCashCents, notes }) });
+    return result.session;
+  }
+
+  async function loadPaymentMethods() {
+    const result = await request("tpv-orders?scope=payment_methods");
+    return result.methods || [];
+  }
+
+  async function createPaymentMethod(name) {
+    const result = await request("tpv-orders", { method: "POST", body: JSON.stringify({ action: "payment_method_create", name }) });
+    return result.method;
+  }
+
   async function loadShift(history = false) {
     const result = await request(`tpv-orders?scope=${history ? "shift_history" : "shift"}`);
     return history ? result.shifts || [] : result.shift || null;
@@ -258,8 +273,8 @@
     return result;
   }
 
-  async function payOrder(orderId, method, lines) {
-    const result = await request("tpv-orders", { method: "PATCH", body: JSON.stringify({ orderId, action: "pay", method, lines }) });
+  async function payOrder(orderId, method, lines, paymentMethodId) {
+    const result = await request("tpv-orders", { method: "PATCH", body: JSON.stringify({ orderId, action: "pay", method, lines, paymentMethodId }) });
     return result.order;
   }
 
@@ -286,6 +301,7 @@
   window.BC_TPV_CLOUD = {
     archiveProduct,
     addCashMovement,
+    addCashCount,
     closeCashSession,
     createProduct,
     createStaff,
@@ -297,6 +313,7 @@
     loadTables,
     login,
     loadCashSession,
+    loadPaymentMethods,
     loadShift,
     loadCategories,
     loadKitchenOrders,
@@ -320,6 +337,7 @@
     tableId,
     openOrder,
     openCashSession,
+    createPaymentMethod,
     startShift,
     seedProducts,
     sendOrderToKitchen,

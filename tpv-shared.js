@@ -98,6 +98,9 @@
 
   function remoteProduct(product) {
     const category = product?.product_categories?.name || product?.category || "Otros";
+    const categoryKey = String(category).toLocaleLowerCase("es");
+    const icon = categoryKey.includes("café") || categoryKey.includes("infusion") ? "☕" : categoryKey.includes("cerveza") || categoryKey.includes("bebida") || categoryKey.includes("vino") ? "🥤" : categoryKey.includes("bocata") || categoryKey.includes("sandwich") ? "🥪" : categoryKey.includes("postre") || categoryKey.includes("bollería") ? "🍰" : categoryKey.includes("arroz") ? "🍚" : categoryKey.includes("picar") ? "🍽" : "🍴";
+    const genericImage = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="100%" height="100%" rx="18" fill="#edf1eb"/><text x="48" y="61" text-anchor="middle" font-size="42">${icon}</text></svg>`)}`;
     return {
       id: product.external_id,
       categoryId: categoryId(category),
@@ -105,7 +108,7 @@
       name: product.name,
       description: product.description || product.variant || category,
       priceCents: Number(product.price_cents || 0),
-      image: "",
+      image: product.image_url || genericImage,
       sendsToKitchen: Boolean(product.sends_to_kitchen),
       active: product.active !== false,
       sortOrder: Number(product.sort_order || 0),

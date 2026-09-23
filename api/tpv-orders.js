@@ -22,9 +22,13 @@ function ensureLines(lines, allowEmpty = false) {
     if (!/^(bolera-\d+|custom-[a-z0-9-]+)$/.test(externalId) || !Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
       throw Object.assign(new Error("Una línea de la comanda no es válida."), { statusCode: 400 });
     }
-    quantities.set(externalId, (quantities.get(externalId) || 0) + quantity);
+    const modifiers = Array.isArray(line.modifiers) ? [...new Set(line.modifiers.map((modifier) => cleanText(modifier, 80)).filter(Boolean))].slice(0, 12) : [];
+    const key = `${externalId}|${JSON.stringify(modifiers)}`;
+    const saved = quantities.get(key) || { productId: externalId, qty: 0, modifiers };
+    saved.qty += quantity;
+    quantities.set(key, saved);
   });
-  return [...quantities.entries()].map(([productId, qty]) => ({ productId, qty }));
+  return [...quantities.values()];
 }
 
 async function findTable(config, tableNumber) {
@@ -56,7 +60,7 @@ async function replaceOrderLines(config, orderId, lines, allowEmpty = false) {
     method: "DELETE",
     headers: { Prefer: "return=minimal" },
   });
-  const items = prepared.map(({ qty, product }) => ({
+  const items = prepared.map(({ qty, modifiers, product }) => ({
     order_id: orderId,
     product_id: product.id,
     product_name: product.name,
@@ -65,6 +69,8 @@ async function replaceOrderLines(config, orderId, lines, allowEmpty = false) {
     quantity: qty,
     line_total_cents: product.price_cents * qty,
     sends_to_kitchen: product.sends_to_kitchen,
+    modifiers,
+    notes: modifiers.join(" · ") || null,
   }));
   if (items.length) await supabaseRequest(config, "pos_order_items", { method: "POST", body: JSON.stringify(items), headers: { Prefer: "return=minimal" } });
   return { items, totalCents: items.reduce((sum, item) => sum + item.line_total_cents, 0) };
@@ -86,6 +92,7 @@ function kitchenItems(items) {
     name: item.product_name,
     variant: item.variant,
     qty: item.quantity,
+    modifiers: item.modifiers || [],
     unitPriceCents: item.unit_price_cents,
   }));
 }
@@ -105,9 +112,10 @@ async function openCashSession(config) {
 
 async function cashSummary(config, cashSession) {
   if (!cashSession) return null;
-  const [orders, movements] = await Promise.all([
+  const [orders, movements, counts] = await Promise.all([
     supabaseRequest(config, `pos_orders?status=eq.paid&closed_at=gte.${encodeURIComponent(cashSession.opened_at)}&select=total_cents,payment_method`, { method: "GET" }),
     supabaseRequest(config, `cash_movements?cash_session_id=eq.${encodeURIComponent(cashSession.id)}&select=*&order=created_at.desc`, { method: "GET" }),
+    supabaseRequest(config, `cash_counts?cash_session_id=eq.${encodeURIComponent(cashSession.id)}&select=*&order=created_at.desc`, { method: "GET" }),
   ]);
   const sales = (orders || []).reduce((total, order) => {
     const amount = Number(order.total_cents || 0);
@@ -117,7 +125,7 @@ async function cashSummary(config, cashSession) {
     return total;
   }, { totalSalesCents: 0, cashSalesCents: 0, cardSalesCents: 0 });
   const movementCents = (movements || []).reduce((total, movement) => total + (movement.movement_type === "in" ? 1 : -1) * Number(movement.amount_cents || 0), 0);
-  return { ...cashSession, summary: { ...sales, movementCents, expectedCashCents: Number(cashSession.opening_float_cents || 0) + sales.cashSalesCents + movementCents, movements: Array.isArray(movements) ? movements : [] } };
+  return { ...cashSession, summary: { ...sales, movementCents, expectedCashCents: Number(cashSession.opening_float_cents || 0) + sales.cashSalesCents + movementCents, movements: Array.isArray(movements) ? movements : [], counts: Array.isArray(counts) ? counts : [] } };
 }
 
 async function openStaffShift(config, staffUserId) {
@@ -136,11 +144,11 @@ async function recordServiceEvent(config, event) {
 }
 
 function addedItems(previousItems, nextItems) {
-  const previousQuantities = new Map((previousItems || []).map((item) => [`${item.product_id}:${item.variant || ""}`, Number(item.quantity || 0)]));
+  const previousQuantities = new Map((previousItems || []).map((item) => [`${item.product_id}:${item.variant || ""}:${JSON.stringify(item.modifiers || [])}`, Number(item.quantity || 0)]));
   return (nextItems || []).map((item) => {
-    const key = `${item.product_id}:${item.variant || ""}`;
+    const key = `${item.product_id}:${item.variant || ""}:${JSON.stringify(item.modifiers || [])}`;
     const quantity = Math.max(0, Number(item.quantity || 0) - Number(previousQuantities.get(key) || 0));
-    return quantity ? { name: item.product_name, variant: item.variant, quantity } : null;
+    return quantity ? { name: item.product_name, variant: item.variant, modifiers: item.modifiers || [], quantity } : null;
   }).filter(Boolean);
 }
 
@@ -168,6 +176,10 @@ module.exports = async function handler(req, res) {
         requireRoles(req, CASH_MANAGER_ROLES);
         const sessions = await supabaseRequest(config, "cash_sessions?status=eq.closed&select=*&order=closed_at.desc&limit=30", { method: "GET" });
         return res.status(200).json({ ok: true, sessions: Array.isArray(sessions) ? sessions : [] });
+      }
+      if (scope === "payment_methods") {
+        const methods = await supabaseRequest(config, "payment_methods?active=is.true&select=*&order=method_type.asc,name.asc", { method: "GET" });
+        return res.status(200).json({ ok: true, methods: Array.isArray(methods) ? methods : [] });
       }
       const orders = await supabaseRequest(
         config,
@@ -214,6 +226,26 @@ module.exports = async function handler(req, res) {
       });
       await audit(config, manager.sub, "cash_sessions", cashSession.id, "movement", { movementType, amountCents, reason });
       return res.status(201).json({ ok: true, session: await cashSummary(config, cashSession) });
+    }
+    if (req.method === "POST" && body.action === "cash_count") {
+      const manager = requireRoles(req, CASH_MANAGER_ROLES);
+      const cashSession = await openCashSession(config);
+      if (!cashSession) return res.status(409).json({ ok: false, error: "No hay una caja abierta." });
+      const currentCash = await cashSummary(config, cashSession);
+      const countedCashCents = cashCents(body.countedCashCents, "efectivo contado");
+      const expectedCashCents = currentCash.summary.expectedCashCents;
+      const rows = await supabaseRequest(config, "cash_counts", { method: "POST", body: JSON.stringify({ cash_session_id: cashSession.id, expected_cash_cents: expectedCashCents, counted_cash_cents: countedCashCents, difference_cents: countedCashCents - expectedCashCents, notes: cleanText(body.notes, 500) || null, counted_by: manager.sub }) });
+      await audit(config, manager.sub, "cash_sessions", cashSession.id, "count", { expectedCashCents, countedCashCents });
+      return res.status(201).json({ ok: true, session: await cashSummary(config, cashSession), count: Array.isArray(rows) ? rows[0] : rows });
+    }
+    if (req.method === "POST" && body.action === "payment_method_create") {
+      const manager = requireRoles(req, CASH_MANAGER_ROLES);
+      const name = cleanText(body.name, 80);
+      if (!name) return res.status(400).json({ ok: false, error: "Indica el nombre de la tarjeta." });
+      const rows = await supabaseRequest(config, "payment_methods", { method: "POST", body: JSON.stringify({ name, method_type: "card" }) });
+      const method = Array.isArray(rows) ? rows[0] : rows;
+      await audit(config, manager.sub, "payment_methods", method.id, "create", { name });
+      return res.status(201).json({ ok: true, method });
     }
     if (req.method === "PATCH" && body.action === "cash_close") {
       const manager = requireRoles(req, CASH_MANAGER_ROLES);
@@ -305,7 +337,15 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method === "PATCH" && body.action === "pay") {
-      const method = cleanText(body.method, 20);
+      let method = cleanText(body.method, 20);
+      let methodDetail = null;
+      if (body.paymentMethodId) {
+        const methods = await supabaseRequest(config, `payment_methods?id=eq.${encodeURIComponent(cleanText(body.paymentMethodId, 80))}&active=is.true&select=*&limit=1`, { method: "GET" });
+        const selected = Array.isArray(methods) ? methods[0] : null;
+        if (!selected) return res.status(400).json({ ok: false, error: "La tarjeta seleccionada no está disponible." });
+        method = selected.method_type;
+        methodDetail = selected.name;
+      }
       if (!["cash", "card", "other"].includes(method)) return res.status(400).json({ ok: false, error: "La forma de pago no es válida." });
       const detail = await replaceOrderLines(config, orderId, body.lines);
       const orders = await supabaseRequest(config, `pos_orders?id=eq.${encodeURIComponent(orderId)}`, {
@@ -314,6 +354,7 @@ module.exports = async function handler(req, res) {
           status: "paid",
           payment_status: "paid",
           payment_method: method,
+          payment_method_detail: methodDetail,
           subtotal_cents: detail.totalCents,
           total_cents: detail.totalCents,
           closed_by: session.sub,
