@@ -219,7 +219,7 @@
         return;
       }
     }
-    state.data.sales.unshift({ id: `V-${state.data.sequence++}`, tableId: state.selectedTableId, totalCents, method, paidAt: new Date().toISOString(), lines: ticket.lines.map((line) => ({ ...line })) });
+    state.data.sales.unshift({ id: `V-${state.data.sequence++}`, tableId: state.selectedTableId, customerId: customerId || null, totalCents, method, paidAt: new Date().toISOString(), lines: ticket.lines.map((line) => ({ ...line })) });
     const loyalty = addLoyaltyDuros(customerId, totalCents);
     state.data.kitchenOrders.forEach((order) => { if (order.tableId === state.selectedTableId && order.status === "ready") order.status = "delivered"; });
     delete state.data.tables[state.selectedTableId];
