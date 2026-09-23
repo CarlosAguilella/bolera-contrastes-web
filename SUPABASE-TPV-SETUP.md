@@ -45,3 +45,7 @@ Luego entra en `/tpv-gestion`, pulsa `Acceder` e inicia sesión. Desde `Sala y m
 - `pos_orders` y `pos_order_items`: comandas y ventas sincronizadas.
 - `kitchen_orders` y `print_jobs`: cocina e impresión con reintentos.
 - `audit_log`: registro de cambios importantes.
+
+## Actualización: fotos reales de artículos
+
+Después de desplegar la versión que añade fotos, ejecuta `supabase/011_product_images.sql` en **SQL Editor**. Crea el campo de foto de los productos y el almacenamiento público `product-images`; las fotos se suben solo desde Gestión con un rol de administrador o gestor.

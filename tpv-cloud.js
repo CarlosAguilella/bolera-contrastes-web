@@ -242,15 +242,59 @@
     return result.invoice;
   }
 
-  async function uploadSupplierInvoiceFile(file) {
-    const contentBase64 = await new Promise((resolve, reject) => {
+  function fileContentBase64(file) {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result || "").split(",").pop());
       reader.onerror = () => reject(new Error("No se pudo leer el archivo."));
       reader.readAsDataURL(file);
     });
+  }
+
+  function productImagePayload(file) {
+    if (!file?.size) return Promise.reject(new Error("Selecciona una foto para el artículo."));
+    if (!new Set(["image/jpeg", "image/png", "image/webp"]).has(file.type)) return Promise.reject(new Error("Usa una foto JPG, PNG o WEBP."));
+    if (file.size > 20 * 1024 * 1024) return Promise.reject(new Error("La foto original no puede superar 20 MB."));
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      image.onload = () => {
+        const maximumSide = 1400;
+        const width = image.naturalWidth || image.width;
+        const height = image.naturalHeight || image.height;
+        const scale = Math.min(1, maximumSide / Math.max(width, height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(width * scale));
+        canvas.height = Math.max(1, Math.round(height * scale));
+        const context = canvas.getContext("2d");
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(objectUrl);
+        canvas.toBlob(async (blob) => {
+          if (!blob) { reject(new Error("No se pudo preparar la foto.")); return; }
+          try {
+            const contentBase64 = await fileContentBase64(blob);
+            const stem = String(file.name || "producto").replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9._-]/g, "_") || "producto";
+            resolve({ fileName: `${stem}.jpg`, mimeType: "image/jpeg", contentBase64 });
+          } catch (error) { reject(error); }
+        }, "image/jpeg", 0.84);
+      };
+      image.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error("No se pudo abrir la foto.")); };
+      image.src = objectUrl;
+    });
+  }
+
+  async function uploadSupplierInvoiceFile(file) {
+    const contentBase64 = await fileContentBase64(file);
     const result = await request("tpv-products", { method: "POST", body: JSON.stringify({ action: "invoice_file_upload", fileName: file.name, mimeType: file.type, contentBase64 }) });
     return result;
+  }
+
+  async function uploadProductImage(file) {
+    const payload = await productImagePayload(file);
+    const result = await request("tpv-products", { method: "POST", body: JSON.stringify({ action: "product_image_upload", ...payload }) });
+    return result.url;
   }
 
   async function getSupplierInvoiceFileUrl(invoiceId) {
@@ -325,6 +369,7 @@
     loadProduction,
     loadAccounting,
     uploadSupplierInvoiceFile,
+    uploadProductImage,
     getSupplierInvoiceFileUrl,
     logout,
     request,

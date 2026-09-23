@@ -75,6 +75,28 @@ function invoiceFile(body) {
   return { fileName, mimeType, buffer };
 }
 
+function productImageFile(body) {
+  const fileName = cleanText(body.fileName, 180).replace(/[^a-zA-Z0-9._-]/g, "_");
+  const mimeType = cleanText(body.mimeType, 80);
+  const allowed = new Set(["image/jpeg", "image/png", "image/webp"]);
+  if (!fileName || !allowed.has(mimeType)) throw Object.assign(new Error("Solo se permiten fotos JPG, PNG o WEBP."), { statusCode: 400 });
+  const content = String(body.contentBase64 || "").replace(/^data:[^;]+;base64,/, "");
+  const buffer = Buffer.from(content, "base64");
+  const validImage = (mimeType === "image/jpeg" && buffer.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])))
+    || (mimeType === "image/png" && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])))
+    || (mimeType === "image/webp" && buffer.subarray(0, 4).toString() === "RIFF" && buffer.subarray(8, 12).toString() === "WEBP");
+  if (!validImage || !buffer.length || buffer.length > 3 * 1024 * 1024) throw Object.assign(new Error("La foto debe ser una imagen válida de menos de 3 MB."), { statusCode: 400 });
+  return { fileName, mimeType, buffer };
+}
+
+function productImageUrl(config, value) {
+  if (value === null || value === "" || value === undefined) return null;
+  const url = String(value).trim().slice(0, 1200);
+  const prefix = `${config.supabaseUrl}/storage/v1/object/public/product-images/`;
+  if (!url.startsWith(prefix)) throw Object.assign(new Error("La foto del artículo no es válida."), { statusCode: 400 });
+  return url;
+}
+
 function invoiceLines(lines) {
   if (!Array.isArray(lines) || !lines.length || lines.length > 150) throw Object.assign(new Error("Incluye al menos una línea de factura válida."), { statusCode: 400 });
   return lines.map((line) => {
@@ -183,6 +205,15 @@ module.exports = async function handler(req, res) {
       await storageRequest(config, `object/supplier-invoices/${encodeURIComponent(path)}`, { method: "POST", headers: { "Content-Type": file.mimeType, "x-upsert": "false" }, body: file.buffer });
       return res.status(201).json({ ok: true, path, fileName: file.fileName });
     }
+    if (req.method === "POST" && body.action === "product_image_upload") {
+      const file = productImageFile(body);
+      const path = `catalog/${new Date().toISOString().slice(0, 10)}/${Date.now()}-${crypto.randomBytes(5).toString("hex")}-${file.fileName}`;
+      const encodedPath = path.split("/").map(encodeURIComponent).join("/");
+      await storageRequest(config, `object/product-images/${encodedPath}`, { method: "POST", headers: { "Content-Type": file.mimeType, "x-upsert": "false" }, body: file.buffer });
+      const url = `${config.supabaseUrl}/storage/v1/object/public/product-images/${encodedPath}`;
+      await audit(config, session.sub, "products", "catalog", "photo_upload", { path });
+      return res.status(201).json({ ok: true, url });
+    }
     if (req.method === "PATCH" && body.action === "reorder_categories") {
       const categoryIds = Array.isArray(body.categoryIds) ? body.categoryIds.map((id) => cleanText(id, 80)).filter(Boolean) : [];
       const uniqueIds = [...new Set(categoryIds)];
@@ -222,6 +253,7 @@ module.exports = async function handler(req, res) {
           name,
           variant,
           description,
+          image_url: productImageUrl(config, body.imageUrl),
           price_cents: priceCents,
           cost_cents: costCents,
           sends_to_kitchen: kitchen,
@@ -246,6 +278,7 @@ module.exports = async function handler(req, res) {
       }
       if (Object.prototype.hasOwnProperty.call(body, "variant")) changes.variant = cleanText(body.variant, 120) || null;
       if (Object.prototype.hasOwnProperty.call(body, "description")) changes.description = cleanText(body.description, 500) || null;
+      if (Object.prototype.hasOwnProperty.call(body, "imageUrl")) changes.image_url = productImageUrl(config, body.imageUrl);
       if (Object.prototype.hasOwnProperty.call(body, "priceCents")) changes.price_cents = cents(body.priceCents, "precio de venta");
       if (Object.prototype.hasOwnProperty.call(body, "costCents")) changes.cost_cents = cents(body.costCents, "coste de compra", true);
       if (typeof body.sendsToKitchen === "boolean") changes.sends_to_kitchen = body.sendsToKitchen;

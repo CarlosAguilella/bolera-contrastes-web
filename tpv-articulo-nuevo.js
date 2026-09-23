@@ -24,6 +24,8 @@
     submit.disabled = true;
     message.textContent = "Guardando artículo…";
     try {
+      const image = values.get("image");
+      const imageUrl = image?.size ? await Cloud.uploadProductImage(image) : undefined;
       await Cloud.createProduct({
         name: String(values.get("name") || "").trim(),
         category: String(values.get("category") || "").trim(),
@@ -31,6 +33,7 @@
         priceCents,
         costCents: rawCost ? Math.round(Number(rawCost) * 100) : null,
         sendsToKitchen: values.get("sendsToKitchen") === "on",
+        ...(imageUrl ? { imageUrl } : {}),
       });
       message.textContent = "Artículo creado. Volviendo a Gestión TPV…";
       window.setTimeout(() => { window.location.href = "tpv-gestion.html"; }, 700);
