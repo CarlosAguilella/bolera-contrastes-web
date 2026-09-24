@@ -30,12 +30,42 @@
     [331, "Vino Ramón Bilbao (crianza)", "Botella vino", "Vino tinto Rioja", 18], [332, "Vino Ramón Bilbao (crianza)", "Copa de vino", "Vino tinto Rioja", 3.10], [333, "Vino Ramón Bilbao (verdejo)", "Botella vino", "Vino blanco", 16], [334, "Vino Ramón Bilbao (verdejo)", "Copa de vino", "Vino blanco", 3.10], [335, "Vino Terras Vellas (albariño)", "Copa de vino", "Vino blanco", 3.10], [336, "Vino Terras Vellas (albariño)", "Botella vino", "Vino blanco", 22], [337, "Vino Villa Núñez (albariño)", "Botella vino", "Vino blanco", 12], [338, "Vino Villa Núñez (albariño)", "Copa de vino", "Vino blanco", 2.60], [339, "Volcanix", "", "Postres", 2.30], [340, "Ximo", "", "Bollería", 2.50], [341, "Zumo", "", "Refrescos y cervezas", 2]
   ];
 
+  const provisionalImageBase = "assets/productos/provisionales/";
+
+  function provisionalImage(name, category) {
+    const productName = String(name || "").toLocaleLowerCase("es");
+    const productCategory = String(category || "").toLocaleLowerCase("es");
+    const image = (filename) => `${provisionalImageBase}${filename}.jpg`;
+
+    if (/bocata|sándwich|sandwich|tostada/.test(productName) || /bocatas|sandwich|tostas/.test(productCategory)) return image("bocata");
+    if (/hamburguesa/.test(productName) || productCategory === "hamburguesa") return image("hamburguesa");
+    if (/arroz|paella|fideu/.test(productName) || productCategory === "arroces") return image("arroz");
+    if (/coca-cola|aquarius|nestea|bitter kas|gaseosa|radler|tinto de verano|tónica|tonica|limón|naranja|zumo|refresco/.test(productName)) return image("refresco");
+    if (/alhambra|corona|cerveza|quinto|tercio|litrona|tanque/.test(productName)) return image("cerveza");
+    if (/vino|vermuth|martini/.test(productName) || /vino blanco|vino tinto/.test(productCategory)) return image("vino");
+    if (/café|cafe|americano|cortado|carajillo|colacao|tocado|\bsolo\b/.test(productName)) return image("cafe");
+    if (/té|te |manzanilla|poleo|roibos|tomillo|jengibre/.test(productName)) return image("te");
+    if (/patata|bravas/.test(productName)) return image("patatas");
+    if (/calamar|chipir|rabas|sepia/.test(productName)) return image("calamares");
+    if (/gambas|gamba/.test(productName)) return image("gambas");
+    if (/croqueta|crujiente/.test(productName)) return image("croquetas");
+    if (/boquer|anchoa|bacalao|caracoles|mollejas|pulpo|olivas|tabla|ibéricos|embutidos|huevos rotos|queso de cabra|pan con alioli/.test(productName)) return image("tapas");
+    if (/ensalada|ensaladilla|esgarraet/.test(productName) || productCategory === "ensaladas") return image("ensalada");
+    if (/corvina|rodaballo/.test(productName) || productCategory === "pescado") return image("pescado");
+    if (/pollo|nuggets|alita/.test(productName)) return image("pollo");
+    if (/helado|polo|magnum|solero|tarrina/.test(productName)) return image("helado");
+    if (/tarta|flan|almendrado|fruta|frigurón|volcanix|chuches|kinder|buñuelos|croasan|ensaimada|magdalena/.test(productName) || productCategory === "postres" || productCategory === "bollería") return image("postre");
+
+    return "";
+  }
+
   window.BC_TPV_MENU = rows.filter(([, , , , price]) => Number(price) > 0).map(([reference, name, variant, category, price]) => ({
     id: `bolera-${reference}`,
     name,
     desc: variant || category,
     cat: category.toLocaleLowerCase("es").replace(/[^a-z0-9]+/g, "-"),
     category,
-    price
+    price,
+    image: provisionalImage(name, category)
   }));
 })();

@@ -118,7 +118,7 @@
     const byId = new Map(remote.map((item) => [item.id, item]));
     const merged = products.map((item) => {
       const saved = byId.get(item.id);
-      return saved ? { ...item, ...saved } : { ...item, active: true };
+      return saved ? { ...item, ...saved, image: saved.image || item.image || "" } : { ...item, active: true };
     });
     const staticIds = new Set(products.map((item) => item.id));
     remote.forEach((item) => { if (!staticIds.has(item.id)) merged.push(item); });
