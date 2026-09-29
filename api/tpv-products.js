@@ -49,7 +49,106 @@ async function recipeForProduct(config, productId) {
 
 async function accountingData(config) {
   const invoices = await supabaseRequest(config, "supplier_invoices?select=*,supplier_invoice_lines(*)&order=invoice_date.desc,created_at.desc&limit=100", { method: "GET" });
-  return Array.isArray(invoices) ? invoices : [];
+  try {
+    const [accounts, entries] = await Promise.all([
+      supabaseRequest(config, "accounting_accounts?select=*&order=group_code.asc,code.asc", { method: "GET" }),
+      supabaseRequest(config, "accounting_entries?select=*,accounting_entry_lines(*,accounting_accounts(code,name,group_code))&order=entry_date.desc,entry_number.desc&limit=150", { method: "GET" }),
+    ]);
+    return { invoices: Array.isArray(invoices) ? invoices : [], accounts: Array.isArray(accounts) ? accounts : [], entries: Array.isArray(entries) ? entries : [], ledgerEnabled: true };
+  } catch (error) {
+    if ([400, 404].includes(Number(error.statusCode))) return { invoices: Array.isArray(invoices) ? invoices : [], accounts: [], entries: [], ledgerEnabled: false };
+    throw error;
+  }
+}
+
+function accountingDate(value) {
+  const date = cleanText(value, 20);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw Object.assign(new Error("La fecha del asiento no es válida."), { statusCode: 400 });
+  return date;
+}
+
+function accountingLines(lines) {
+  if (!Array.isArray(lines) || lines.length < 2 || lines.length > 40) throw Object.assign(new Error("El asiento debe tener entre 2 y 40 líneas."), { statusCode: 400 });
+  const cleanLines = lines.map((line) => {
+    const accountId = cleanText(line?.accountId, 80);
+    const debitCents = line?.debitCents === null || line?.debitCents === undefined || line?.debitCents === "" ? 0 : cents(line.debitCents, "importe al debe");
+    const creditCents = line?.creditCents === null || line?.creditCents === undefined || line?.creditCents === "" ? 0 : cents(line.creditCents, "importe al haber");
+    if (!accountId) throw Object.assign(new Error("Selecciona una cuenta en cada línea."), { statusCode: 400 });
+    if ((debitCents > 0) === (creditCents > 0)) throw Object.assign(new Error("Cada línea debe tener importe solo en Debe o solo en Haber."), { statusCode: 400 });
+    return { account_id: accountId, debit_cents: debitCents, credit_cents: creditCents, description: cleanText(line?.description, 300) || null };
+  });
+  const debitTotal = cleanLines.reduce((sum, line) => sum + line.debit_cents, 0);
+  const creditTotal = cleanLines.reduce((sum, line) => sum + line.credit_cents, 0);
+  if (!debitTotal || debitTotal !== creditTotal) throw Object.assign(new Error("El asiento debe cuadrar: el Debe y el Haber deben ser iguales."), { statusCode: 400 });
+  return cleanLines;
+}
+
+async function activeAccountingAccounts(config) {
+  const accounts = await supabaseRequest(config, "accounting_accounts?active=eq.true&select=id,code,name,group_code,account_type&order=group_code.asc,code.asc", { method: "GET" });
+  return Array.isArray(accounts) ? accounts : [];
+}
+
+async function supplierInvoiceAccounts(config, expenseAccountId, vatCents, subtotalCents) {
+  const expenseId = cleanText(expenseAccountId, 80);
+  if (!expenseId) return null;
+  if (Number(subtotalCents) <= 0 || Number(subtotalCents) + Number(vatCents) <= 0) {
+    throw Object.assign(new Error("La factura debe tener un importe mayor que cero para crear el asiento."), { statusCode: 400 });
+  }
+  const accounts = await activeAccountingAccounts(config);
+  const expenseAccount = accounts.find((account) => account.id === expenseId);
+  const supplierAccount = accounts.find((account) => account.code === "400");
+  const vatAccount = accounts.find((account) => account.code === "472");
+  if (!expenseAccount || !supplierAccount || (Number(vatCents) > 0 && !vatAccount)) {
+    throw Object.assign(new Error("Faltan cuentas para contabilizar la factura. Revisa el plan contable."), { statusCode: 409 });
+  }
+  return { expenseAccount, supplierAccount, vatAccount };
+}
+
+async function createAccountingEntry(config, session, input) {
+  const entryDate = accountingDate(input.entryDate);
+  const description = cleanText(input.description, 500);
+  const reference = cleanText(input.reference, 160) || null;
+  const sourceType = ["manual", "supplier_invoice", "pos_sale", "cash_close"].includes(input.sourceType) ? input.sourceType : "manual";
+  const sourceId = cleanText(input.sourceId, 80) || null;
+  if (!description) throw Object.assign(new Error("Describe el asiento contable."), { statusCode: 400 });
+  const lines = accountingLines(input.lines);
+  const accounts = await activeAccountingAccounts(config);
+  const accountIds = new Set(accounts.map((account) => account.id));
+  if (lines.some((line) => !accountIds.has(line.account_id))) throw Object.assign(new Error("Una de las cuentas seleccionadas no está disponible."), { statusCode: 400 });
+  const rows = await supabaseRequest(config, "accounting_entries", {
+    method: "POST",
+    body: JSON.stringify({ entry_date: entryDate, reference, description, source_type: sourceType, source_id: sourceId, status: "posted", created_by: session.sub }),
+  });
+  const entry = Array.isArray(rows) ? rows[0] : rows;
+  if (!entry?.id) throw new Error("No se pudo crear el asiento contable.");
+  try {
+    await supabaseRequest(config, "accounting_entry_lines", {
+      method: "POST",
+      body: JSON.stringify(lines.map((line) => ({ ...line, entry_id: entry.id }))),
+      headers: { Prefer: "return=minimal" },
+    });
+  } catch (error) {
+    try { await supabaseRequest(config, `accounting_entries?id=eq.${encodeURIComponent(entry.id)}`, { method: "DELETE", headers: { Prefer: "return=minimal" } }); } catch (cleanupError) {}
+    throw error;
+  }
+  await audit(config, session.sub, "accounting_entries", entry.id, "create", { entryDate, reference, sourceType, lineCount: lines.length });
+  return entry;
+}
+
+async function createSupplierInvoiceEntry(config, session, invoice, accounts) {
+  if (!accounts) return null;
+  const { expenseAccount, supplierAccount, vatAccount } = accounts;
+  const lines = [{ accountId: expenseAccount.id, debitCents: Number(invoice.subtotal_cents), creditCents: 0 }];
+  if (Number(invoice.vat_cents) > 0) lines.push({ accountId: vatAccount.id, debitCents: Number(invoice.vat_cents), creditCents: 0 });
+  lines.push({ accountId: supplierAccount.id, debitCents: 0, creditCents: Number(invoice.total_cents) });
+  return createAccountingEntry(config, session, {
+    entryDate: invoice.invoice_date,
+    reference: invoice.invoice_number || `FAC-${invoice.id.slice(0, 8)}`,
+    description: `Factura de proveedor · ${invoice.supplier_name}`,
+    sourceType: "supplier_invoice",
+    sourceId: invoice.id,
+    lines,
+  });
 }
 
 async function storageRequest(config, path, options = {}) {
@@ -120,7 +219,7 @@ module.exports = async function handler(req, res) {
       }
       if (req.query?.scope === "accounting") {
         requireRoles(req, ["admin", "manager"]);
-        return res.status(200).json({ ok: true, invoices: await accountingData(config) });
+        return res.status(200).json({ ok: true, ...(await accountingData(config)) });
       }
       if (req.query?.scope === "invoice_file") {
         requireRoles(req, ["admin", "manager"]);
@@ -139,6 +238,26 @@ module.exports = async function handler(req, res) {
 
     const session = requireRoles(req, ["admin", "manager"]);
     const body = await readRequestBody(req);
+    if (req.method === "POST" && body.action === "account_create") {
+      const code = cleanText(body.code, 12);
+      const name = cleanText(body.name, 160);
+      const groupCode = cleanText(body.groupCode, 1);
+      const accountType = cleanText(body.accountType, 20);
+      if (!/^\d{3,12}$/.test(code) || !["1", "2", "3", "4", "5", "6", "7", "8", "9"].includes(groupCode) || code.charAt(0) !== groupCode || !name || !["asset", "liability", "equity", "expense", "income"].includes(accountType)) {
+        return res.status(400).json({ ok: false, error: "Completa un código, grupo, nombre y naturaleza de cuenta válidos." });
+      }
+      const rows = await supabaseRequest(config, "accounting_accounts", {
+        method: "POST",
+        body: JSON.stringify({ code, name, group_code: groupCode, account_type: accountType, active: true, is_system: false }),
+      });
+      const account = Array.isArray(rows) ? rows[0] : rows;
+      await audit(config, session.sub, "accounting_accounts", account?.id || code, "create", { code, name, groupCode, accountType });
+      return res.status(201).json({ ok: true, account });
+    }
+    if (req.method === "POST" && body.action === "accounting_entry_create") {
+      const entry = await createAccountingEntry(config, session, body);
+      return res.status(201).json({ ok: true, entry });
+    }
     if (req.method === "POST" && body.action === "ingredient_create") {
       const name = cleanText(body.name, 160);
       const baseUnit = ["g", "ml", "unidad"].includes(body.baseUnit) ? body.baseUnit : "unidad";
@@ -193,11 +312,14 @@ module.exports = async function handler(req, res) {
       if (!lines.length && !sourceFilePath) return res.status(400).json({ ok: false, error: "Incluye líneas de factura o adjunta un archivo." });
       const subtotalCents = lines.reduce((total, line) => total + line.line_total_cents, 0);
       const vatCents = Math.round(lines.reduce((total, line) => total + line.line_total_cents * line.vat_percent / 100, 0));
+      const invoiceAccounts = await supplierInvoiceAccounts(config, body.expenseAccountId, vatCents, subtotalCents);
       const rows = await supabaseRequest(config, "supplier_invoices", { method: "POST", body: JSON.stringify({ supplier_name: supplierName, invoice_number: invoiceNumber, invoice_date: invoiceDate, subtotal_cents: subtotalCents, vat_cents: vatCents, total_cents: subtotalCents + vatCents, classification_status: lines.length ? "manual" : "pending_ai", source_file_name: cleanText(body.sourceFileName, 180) || null, source_file_path: sourceFilePath, source_text: cleanText(body.sourceText, 12000) || null, created_by: session.sub }) });
       const invoice = Array.isArray(rows) ? rows[0] : rows;
       await supabaseRequest(config, "supplier_invoice_lines", { method: "POST", body: JSON.stringify(lines.map((line) => ({ ...line, invoice_id: invoice.id }))), headers: { Prefer: "return=minimal" } });
-      await audit(config, session.sub, "supplier_invoices", invoice.id, "create", { supplierName, lines: lines.length });
-      return res.status(201).json({ ok: true, invoice });
+      const entry = await createSupplierInvoiceEntry(config, session, invoice, invoiceAccounts);
+      if (entry?.id) await supabaseRequest(config, `supplier_invoices?id=eq.${encodeURIComponent(invoice.id)}`, { method: "PATCH", body: JSON.stringify({ accounting_entry_id: entry.id }) });
+      await audit(config, session.sub, "supplier_invoices", invoice.id, "create", { supplierName, lines: lines.length, accountingEntryId: entry?.id || null });
+      return res.status(201).json({ ok: true, invoice: { ...invoice, accounting_entry_id: entry?.id || null }, entry });
     }
     if (req.method === "POST" && body.action === "invoice_file_upload") {
       const file = invoiceFile(body);

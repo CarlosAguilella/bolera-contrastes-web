@@ -233,8 +233,17 @@
   }
 
   async function loadAccounting() {
-    const result = await request("tpv-products?scope=accounting");
-    return result.invoices || [];
+    return request("tpv-products?scope=accounting");
+  }
+
+  async function createAccountingAccount(input) {
+    const result = await request("tpv-products", { method: "POST", body: JSON.stringify({ action: "account_create", ...input }) });
+    return result.account;
+  }
+
+  async function createAccountingEntry(input) {
+    const result = await request("tpv-products", { method: "POST", body: JSON.stringify({ action: "accounting_entry_create", ...input }) });
+    return result.entry;
   }
 
   async function createSupplierInvoice(input) {
@@ -350,6 +359,8 @@
     createProduct,
     createStaff,
     createIngredient,
+    createAccountingAccount,
+    createAccountingEntry,
     createSupplierInvoice,
     createTable,
     deleteTable,

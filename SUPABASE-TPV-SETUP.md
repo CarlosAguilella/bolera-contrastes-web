@@ -49,3 +49,14 @@ Luego entra en `/tpv-gestion`, pulsa `Acceder` e inicia sesión. Desde `Sala y m
 ## Actualización: fotos reales de artículos
 
 Después de desplegar la versión que añade fotos, ejecuta `supabase/011_product_images.sql` en **SQL Editor**. Crea el campo de foto de los productos y el almacenamiento público `product-images`; las fotos se suben solo desde Gestión con un rol de administrador o gestor.
+
+## Actualización: plan contable operativo
+
+Ejecuta `supabase/012_accounting_workbench.sql` en **SQL Editor** para activar las cuentas, el libro diario y los saldos contables. Después, en `tpv-gestion` > **Contabilidad** podrás:
+
+- Crear cuentas auxiliares dentro de cualquiera de los nueve grupos.
+- Registrar asientos manuales de Debe y Haber; no se guardan si no cuadran.
+- Registrar una factura de proveedor y generar el asiento de compra, IVA soportado y Proveedores.
+- Consultar el libro mayor con el saldo acumulado por cuenta.
+
+El listado inicial es una base práctica del Plan General Contable. Confirmad con vuestra asesoría las cuentas auxiliares, los criterios de IVA y el cierre oficial antes de usarlo para presentar impuestos o cuentas anuales.

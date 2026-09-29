@@ -390,6 +390,42 @@ button:disabled { cursor: not-allowed; opacity: .48; }
 .tpv-invoice-list li b { text-align: right; }
 .tpv-invoice-list footer { border-top: 1px solid var(--tpv-line); color: var(--tpv-muted); font-size: 11px; }
 .tpv-invoice-list em { color: var(--tpv-green); font-size: 10px; font-style: normal; font-weight: 800; }
+.tpv-accounting-warning { padding: 20px; border-color: #d7b66d; background: #fffaf0; }
+.tpv-accounting-warning h2 { margin: 0 0 7px; font-size: 18px; }
+.tpv-accounting-warning p { margin: 0; color: #69552f; font-size: 13px; line-height: 1.5; }
+.tpv-accounting-warning code { padding: 2px 5px; border-radius: 4px; background: #f0e4c9; color: #4d3c1c; }
+.tpv-accounting-workspace { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.35fr); gap: 18px; }
+.tpv-accounting-account-form, .tpv-accounting-entry-form { display: grid; gap: 10px; padding: 0 20px 20px; }
+.tpv-accounting-account-form { grid-template-columns: minmax(80px, .45fr) minmax(170px, 1.35fr) minmax(90px, .8fr) minmax(115px, .9fr) auto; align-items: end; }
+.tpv-accounting-account-form label, .tpv-accounting-entry-head label { display: grid; gap: 4px; color: var(--tpv-muted); font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.tpv-accounting-account-form input, .tpv-accounting-account-form select, .tpv-accounting-entry-head input, .tpv-accounting-entry-line select, .tpv-accounting-entry-line input { min-width: 0; height: 37px; padding: 7px 9px; border: 1px solid var(--tpv-line); border-radius: 8px; color: var(--tpv-ink); background: #fff; font: inherit; text-transform: none; }
+.tpv-accounting-entry-head { display: grid; grid-template-columns: 130px minmax(120px, .8fr) minmax(180px, 1.7fr); gap: 9px; }
+.tpv-accounting-entry-labels, .tpv-accounting-entry-line { display: grid; grid-template-columns: minmax(0, 1fr) 112px 112px; gap: 9px; align-items: center; }
+.tpv-accounting-entry-labels { padding-top: 5px; color: var(--tpv-muted); font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.tpv-accounting-entry-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 3px; }
+.tpv-accounting-entry-actions small { color: var(--tpv-muted); font-size: 11px; line-height: 1.35; }
+.tpv-accounting-entries { display: grid; gap: 12px; padding: 0 20px 20px; }
+.tpv-accounting-entries article { overflow: hidden; border: 1px solid var(--tpv-line); border-radius: 10px; }
+.tpv-accounting-entries article > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 13px; background: #fafaf8; }
+.tpv-accounting-entries b, .tpv-accounting-entries small { display: block; }
+.tpv-accounting-entries small { margin-top: 3px; color: var(--tpv-muted); font-size: 11px; }
+.tpv-accounting-entries header > strong { font-family: var(--tpv-display); font-size: 21px; font-weight: 400; }
+.tpv-accounting-entries p { margin: 0; padding: 10px 13px 7px; font-size: 12px; font-weight: 700; }
+.tpv-accounting-entries ul { margin: 0; padding: 0; list-style: none; }
+.tpv-accounting-entries li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 13px; border-top: 1px solid var(--tpv-line); font-size: 12px; }
+.tpv-accounting-entries li b { font-size: 11px; white-space: nowrap; }
+.tpv-accounting-plan { display: grid; gap: 14px; padding: 20px; }
+.tpv-accounting-plan > section { overflow: hidden; border: 1px solid var(--tpv-line); border-radius: 11px; }
+.tpv-accounting-plan > section > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; background: #fafaf8; }
+.tpv-accounting-plan header b, .tpv-accounting-plan header small { display: block; }
+.tpv-accounting-plan header b { font-size: 13px; }
+.tpv-accounting-plan header small { max-width: 550px; margin-top: 3px; color: var(--tpv-muted); font-size: 11px; }
+.tpv-accounting-plan header > strong { color: var(--tpv-green); font-size: 11px; text-align: right; }
+.tpv-accounting-plan-head, .tpv-accounting-plan-row { display: grid; grid-template-columns: minmax(210px, 1.8fr) 100px 100px minmax(130px, 1fr); gap: 12px; align-items: center; min-width: 660px; padding: 9px 14px; font-size: 12px; }
+.tpv-accounting-plan-head { color: var(--tpv-muted); background: #f4f5f2; font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.tpv-accounting-plan-row { border-top: 1px solid var(--tpv-line); }
+.tpv-accounting-plan-row > span:not(:first-child), .tpv-accounting-plan-row strong { text-align: right; }
+.tpv-accounting-plan-row strong { color: var(--tpv-muted); font-size: 11px; }
 .tpv-feature-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 20px; }
 .tpv-feature-grid article { display: grid; gap: 7px; padding: 17px; border-radius: 12px; background: #f5f6f3; }
 .tpv-feature-grid b { font-size: 14px; }
@@ -624,6 +660,17 @@ button:disabled { cursor: not-allowed; opacity: .48; }
   .tpv-invoice-form { grid-template-columns: 1fr; padding: 0 14px 14px; }
   .tpv-invoice-upload { grid-template-columns: 1fr; padding: 0 14px 14px; }
   .tpv-invoice-list { padding: 14px; }
+  .tpv-accounting-workspace { grid-template-columns: 1fr; gap: 14px; }
+  .tpv-accounting-account-form, .tpv-accounting-entry-form { padding: 0 14px 14px; }
+  .tpv-accounting-account-form { grid-template-columns: 1fr 1fr; }
+  .tpv-accounting-account-form .tpv-action { grid-column: 1 / -1; }
+  .tpv-accounting-entry-head { grid-template-columns: 1fr; }
+  .tpv-accounting-entry-labels { display: none; }
+  .tpv-accounting-entry-line { grid-template-columns: minmax(0, 1fr) 82px 82px; }
+  .tpv-accounting-entry-actions { align-items: stretch; flex-direction: column; }
+  .tpv-accounting-entry-actions .tpv-action { width: 100%; }
+  .tpv-accounting-entries, .tpv-accounting-plan { padding: 14px; }
+  .tpv-accounting-plan > section { overflow-x: auto; }
 }
 
 @media (max-width: 800px) {

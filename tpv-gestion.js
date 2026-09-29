@@ -4,7 +4,7 @@
   const root = document.getElementById("tpv-gestion-root");
   if (!Core || !root) return;
 
-  const state = { tab: "ventas", search: "", staff: [], cashSession: null, cashHistory: [], shiftHistory: [], tableHistory: [], accountingInvoices: [], selectedLoyaltyCustomerId: null, production: { ingredients: [], recipes: [], recipeLines: [], settings: null }, recipeProductId: "", editingId: null, creatingProduct: window.location.hash === "#nuevo-articulo", editingTableId: null, deletingTableId: null, loginOpen: false, loginUsername: "carlos", data: Core.loadData(), toast: null };
+  const state = { tab: "ventas", search: "", staff: [], cashSession: null, cashHistory: [], shiftHistory: [], tableHistory: [], accountingInvoices: [], accountingAccounts: [], accountingEntries: [], accountingReady: null, selectedLoyaltyCustomerId: null, production: { ingredients: [], recipes: [], recipeLines: [], settings: null }, recipeProductId: "", editingId: null, creatingProduct: window.location.hash === "#nuevo-articulo", editingTableId: null, deletingTableId: null, loginOpen: false, loginUsername: "carlos", data: Core.loadData(), toast: null };
   let toastTimer = null;
   let draggedTable = null;
 
@@ -72,7 +72,18 @@
   }
   async function refreshCloudAccounting() {
     if (!isCloudConnected() || !["admin", "manager"].includes(session().user.role)) return;
-    try { state.accountingInvoices = await Cloud.loadAccounting(); } catch (error) { state.accountingInvoices = []; }
+    try {
+      const accounting = await Cloud.loadAccounting();
+      state.accountingInvoices = Array.isArray(accounting.invoices) ? accounting.invoices : [];
+      state.accountingAccounts = Array.isArray(accounting.accounts) ? accounting.accounts : [];
+      state.accountingEntries = Array.isArray(accounting.entries) ? accounting.entries : [];
+      state.accountingReady = accounting.ledgerEnabled !== false;
+    } catch (error) {
+      state.accountingInvoices = [];
+      state.accountingAccounts = [];
+      state.accountingEntries = [];
+      state.accountingReady = false;
+    }
   }
   function flash(message) {
     state.toast = message;
@@ -256,6 +267,51 @@
     const groups = [["1", "Financiación básica", "Capital, reservas y deudas a largo plazo."], ["2", "Activo no corriente", "Inmovilizado, instalaciones, maquinaria y equipos."], ["3", "Existencias", "Materias primas, mercaderías y productos en curso."], ["4", "Acreedores y deudores", "Proveedores, clientes, IVA y Administraciones Públicas."], ["5", "Cuentas financieras", "Caja, bancos, tarjetas y créditos a corto plazo."], ["6", "Compras y gastos", "Compras, sueldos, suministros, alquileres y servicios."], ["7", "Ventas e ingresos", "Ventas, prestación de servicios y otros ingresos."], ["8", "Gastos imputados al patrimonio neto", "Ajustes contables específicos."], ["9", "Ingresos imputados al patrimonio neto", "Subvenciones y otros ajustes específicos."]];
     return `<section class="tpv-gestion-card"><header><div><h2>Plan General Contable español</h2><span>Los 9 grupos que utilizará la contabilidad al clasificar las facturas.</span></div></header><div class="tpv-feature-grid">${groups.map(([group, title, description]) => `<article><b>Grupo ${group} · ${title}</b><span>${description}</span></article>`).join("")}</div></section>`;
   }
+  function accountingGroups() {
+    return [["1", "Financiación básica", "Capital, reservas y deuda a largo plazo."], ["2", "Activo no corriente", "Instalaciones, maquinaria y equipos."], ["3", "Existencias", "Mercaderías y materias primas."], ["4", "Acreedores y deudores", "Proveedores, clientes e IVA."], ["5", "Cuentas financieras", "Caja, bancos y tarjetas."], ["6", "Compras y gastos", "Compras, personal, suministros y servicios."], ["7", "Ventas e ingresos", "Ventas, servicios e ingresos."], ["8", "Gastos imputados al patrimonio neto", "Ajustes contables específicos."], ["9", "Ingresos imputados al patrimonio neto", "Ajustes contables específicos."]];
+  }
+  function accountingAccountOptions(accounts, selectedId = "", allowedGroups = null) {
+    return accounts.filter((account) => account.active !== false && (!allowedGroups || allowedGroups.includes(account.group_code))).map((account) => `<option value="${account.id}" ${account.id === selectedId ? "selected" : ""}>${escapeHtml(account.code)} · ${escapeHtml(account.name)}</option>`).join("");
+  }
+  function accountingLedger(accounts, entries) {
+    const ledger = new Map(accounts.map((account) => [account.id, { account, debitCents: 0, creditCents: 0 }]));
+    entries.filter((entry) => entry.status !== "void").forEach((entry) => (entry.accounting_entry_lines || []).forEach((line) => {
+      const row = ledger.get(line.account_id);
+      if (!row) return;
+      row.debitCents += Number(line.debit_cents || 0);
+      row.creditCents += Number(line.credit_cents || 0);
+    }));
+    return ledger;
+  }
+  function balanceLabel(debitCents, creditCents) {
+    const balance = Number(debitCents || 0) - Number(creditCents || 0);
+    if (!balance) return "Sin movimiento";
+    return `${Core.formatEuros(Math.abs(balance))} · ${balance > 0 ? "saldo deudor" : "saldo acreedor"}`;
+  }
+  function renderAccountingWorkspace() {
+    if (!isCloudConnected() || !["admin", "manager"].includes(session()?.user?.role)) return `<section class="tpv-gestion-content"><section class="tpv-gestion-card"><p class="tpv-gestion-empty">Inicia sesión como administrador para registrar facturas y gastos.</p></section></section>`;
+    const invoices = state.accountingInvoices;
+    const accounts = state.accountingAccounts;
+    const entries = state.accountingEntries;
+    const ledgerEnabled = state.accountingReady !== false;
+    const total = invoices.reduce((sum, invoice) => sum + Number(invoice.total_cents || 0), 0);
+    const vat = invoices.reduce((sum, invoice) => sum + Number(invoice.vat_cents || 0), 0);
+    const expenseDefault = accounts.find((account) => account.code === "600")?.id || "";
+    const invoiceEntries = new Map(entries.map((entry) => [entry.id, entry]));
+    const accountOptions = accountingAccountOptions(accounts);
+    const accountRows = Array.from({ length: 4 }, () => `<div class="tpv-accounting-entry-line"><select name="accountId"><option value="">Selecciona cuenta</option>${accountOptions}</select><input name="debit" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"><input name="credit" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div>`).join("");
+    const readiness = ledgerEnabled ? "" : `<section class="tpv-gestion-card tpv-accounting-warning"><h2>Activa el libro contable</h2><p>Las facturas siguen disponibles, pero falta ejecutar <code>supabase/012_accounting_workbench.sql</code> en Supabase para crear cuentas, asientos y saldos.</p></section>`;
+    const operatingForms = ledgerEnabled ? `<div class="tpv-accounting-workspace"><section class="tpv-gestion-card"><header><div><h2>Crear cuenta auxiliar</h2><span>Amplía el plan cuando necesites separar gastos, bancos o proveedores.</span></div></header><form class="tpv-accounting-account-form" data-accounting-account-form><label>Código<input name="code" inputmode="numeric" pattern="[0-9]{3,12}" maxlength="12" required placeholder="6281"></label><label>Nombre<input name="name" maxlength="160" required placeholder="Electricidad local"></label><label>Grupo<select name="groupCode" required>${accountingGroups().map(([code, title]) => `<option value="${code}" ${code === "6" ? "selected" : ""}>${code} · ${title}</option>`).join("")}</select></label><label>Naturaleza<select name="accountType"><option value="expense">Gasto</option><option value="income">Ingreso</option><option value="asset">Activo</option><option value="liability">Pasivo</option><option value="equity">Patrimonio neto</option></select></label><button class="tpv-action" type="submit">Crear cuenta</button></form></section><section class="tpv-gestion-card"><header><div><h2>Registrar asiento manual</h2><span>Escribe las líneas del Debe y el Haber. Solo se guarda si cuadra.</span></div></header><form class="tpv-accounting-entry-form" data-accounting-entry-form><div class="tpv-accounting-entry-head"><label>Fecha<input name="entryDate" type="date" value="${new Date().toISOString().slice(0, 10)}" required></label><label>Referencia<input name="reference" maxlength="160" placeholder="Ej. ticket banco"></label><label>Concepto<input name="description" maxlength="500" required placeholder="Movimiento o ajuste contable"></label></div><div class="tpv-accounting-entry-labels"><span>Cuenta</span><span>Debe (€)</span><span>Haber (€)</span></div>${accountRows}<div class="tpv-accounting-entry-actions"><small>Ejemplo: 628 Suministros al Debe y 572 Bancos al Haber.</small><button class="tpv-action" type="submit">Registrar asiento</button></div></form></section></div>` : "";
+    const invoiceAccount = ledgerEnabled && accounts.length ? `<label>Cuenta de compra o gasto<select name="expenseAccountId">${accountingAccountOptions(accounts, expenseDefault, ["3", "6"])}</select><small>Al guardar se crea el asiento: gasto + IVA soportado contra Proveedores.</small></label>` : "";
+    const entryList = ledgerEnabled ? `<section class="tpv-gestion-card"><header><div><h2>Últimos asientos</h2><span>Libro diario simplificado con partidas que siempre cuadran.</span></div></header><div class="tpv-accounting-entries">${entries.length ? entries.slice(0, 12).map((entry) => { const entryLines = entry.accounting_entry_lines || []; const totalDebit = entryLines.reduce((sum, line) => sum + Number(line.debit_cents || 0), 0); return `<article><header><div><b>Asiento #${escapeHtml(entry.entry_number)}</b><small>${new Date(`${entry.entry_date}T12:00:00`).toLocaleDateString("es-ES")}${entry.reference ? ` · ${escapeHtml(entry.reference)}` : ""}</small></div><strong>${Core.formatEuros(totalDebit)}</strong></header><p>${escapeHtml(entry.description)}</p><ul>${entryLines.map((line) => { const account = line.accounting_accounts || accounts.find((item) => item.id === line.account_id) || {}; return `<li><span>${escapeHtml(account.code || "—")} · ${escapeHtml(account.name || "Cuenta eliminada")}</span><b>${Number(line.debit_cents) ? `Debe ${Core.formatEuros(line.debit_cents)}` : `Haber ${Core.formatEuros(line.credit_cents)}`}</b></li>`; }).join("")}</ul></article>`; }).join("") : `<p class="tpv-gestion-empty">Todavía no hay asientos. Registra una factura o crea uno manual.</p>`}</div></section>` : "";
+    return `<section class="tpv-gestion-content"><div class="tpv-gestion-metrics"><article><span>Facturas registradas</span><strong>${invoices.length}</strong></article><article><span>Compras con IVA</span><strong>${Core.formatEuros(total)}</strong></article><article><span>IVA soportado</span><strong>${Core.formatEuros(vat)}</strong></article><article><span>Asientos</span><strong>${ledgerEnabled ? entries.length : "Pendiente"}</strong></article></div>${readiness}${operatingForms}<section class="tpv-gestion-card"><header><div><h2>Subir factura para lectura</h2><span>Admite PDF, JPG o PNG de hasta 6 MB. Se guarda de forma privada y queda pendiente de clasificar.</span></div></header><form class="tpv-invoice-upload" data-invoice-upload-form><label>Elegir archivo<input name="invoiceFile" type="file" accept="application/pdf,image/jpeg,image/png"></label><label class="tpv-camera-upload">Hacer foto<input name="invoiceCamera" type="file" accept="image/jpeg,image/png" capture="environment"><span>Usar cámara trasera</span></label><small>En móvil, pulsa “Usar cámara trasera”, fotografía la factura y súbela directamente. Una foto escaneada necesita OCR; una factura PDF con texto se puede leer sin IA.</small><button class="tpv-action" type="submit">Subir factura</button></form></section><section class="tpv-gestion-card"><header><div><h2>Registrar factura de proveedor</h2><span>Introduce o corrige la información; al elegir una cuenta se genera el asiento automáticamente.</span></div></header><form class="tpv-invoice-form" data-invoice-form><label>Proveedor<input name="supplierName" required placeholder="Distribuciones Ejemplo"></label><label>Número factura<input name="invoiceNumber" placeholder="Opcional"></label><label>Fecha<input name="invoiceDate" type="date" value="${new Date().toISOString().slice(0, 10)}" required></label>${invoiceAccount}<label class="tpv-invoice-form__wide">Líneas de factura<textarea name="lines" required placeholder="Producto | código | cantidad | precio unitario sin IVA (€) | IVA (%)\nPan bocadillo | 843... | 24 | 0.42 | 10\nBacon lonchas | BAC-01 | 10 | 4.50 | 10"></textarea><small>Una línea por producto. Este formato será el resultado que propondrá el lector automático.</small></label><label class="tpv-invoice-form__wide">Texto original u observaciones<textarea name="sourceText" placeholder="Pega aquí el texto extraído de una factura si lo tienes."></textarea></label><button class="tpv-action" type="submit">Guardar factura</button></form></section>${entryList}<section class="tpv-gestion-card"><header><div><h2>Facturas y gastos de compra</h2><span>Las facturas subidas se revisan antes de afectar al stock o al coste.</span></div></header><div class="tpv-invoice-list">${invoices.length ? invoices.map((invoice) => { const entry = invoiceEntries.get(invoice.accounting_entry_id); return `<article><header><div><b>${escapeHtml(invoice.supplier_name)}</b><small>${escapeHtml(invoice.invoice_number || "Sin número")} · ${new Date(`${invoice.invoice_date}T12:00:00`).toLocaleDateString("es-ES")}</small></div><strong>${Core.formatEuros(invoice.total_cents)}</strong></header><ul>${(invoice.supplier_invoice_lines || []).map((line) => `<li><span>${escapeHtml(line.product_name)}${line.product_code ? ` · ${escapeHtml(line.product_code)}` : ""}</span><span>${line.quantity} ${escapeHtml(line.unit || "uds.")}</span><b>${Core.formatEuros(line.line_total_cents)}</b></li>`).join("")}</ul><footer><span>Base: ${Core.formatEuros(invoice.subtotal_cents)} · IVA: ${Core.formatEuros(invoice.vat_cents)}</span><div>${invoice.source_file_path ? `<button class="tpv-edit-button" type="button" data-open-invoice-file="${invoice.id}">Abrir archivo</button>` : ""}<em>${entry ? `Asiento #${entry.entry_number} contabilizado` : invoice.classification_status === "manual" ? "Registrada, sin asiento" : "Pendiente de lectura"}</em></div></footer></article>`; }).join("") : `<p class="tpv-gestion-empty">Aún no hay facturas. Sube una cuando quieras probar el circuito.</p>`}</div></section><aside class="tpv-management-note"><h2>Contabilidad de gestión</h2><p>El TPV registra compras y asientos equilibrados para controlar el negocio. Antes de presentar impuestos o cerrar el ejercicio, revisad cuentas, IVA y criterios con vuestra asesoría.</p><p>La lectura automática propone datos; una persona valida siempre la factura y su cuenta de gasto.</p></aside></section>`;
+  }
+  function renderAccountingLedger() {
+    if (state.accountingReady === false) return "";
+    const accounts = state.accountingAccounts;
+    const ledger = accountingLedger(accounts, state.accountingEntries);
+    return `<section class="tpv-gestion-card"><header><div><h2>Plan General Contable · libro mayor</h2><span>Cuentas de trabajo con acumulado de Debe, Haber y saldo. Los grupos 8 y 9 se pueden ampliar si los necesitáis.</span></div></header><div class="tpv-accounting-plan">${accountingGroups().map(([groupCode, title, description]) => { const rows = accounts.filter((account) => account.group_code === groupCode); const groupDebit = rows.reduce((sum, account) => sum + Number(ledger.get(account.id)?.debitCents || 0), 0); const groupCredit = rows.reduce((sum, account) => sum + Number(ledger.get(account.id)?.creditCents || 0), 0); return `<section><header><div><b>Grupo ${groupCode} · ${title}</b><small>${description}</small></div><strong>${balanceLabel(groupDebit, groupCredit)}</strong></header><div class="tpv-accounting-plan-head"><span>Cuenta</span><span>Debe</span><span>Haber</span><span>Saldo</span></div>${rows.length ? rows.map((account) => { const row = ledger.get(account.id) || { debitCents: 0, creditCents: 0 }; return `<div class="tpv-accounting-plan-row"><span><b>${escapeHtml(account.code)}</b> ${escapeHtml(account.name)}${account.active === false ? " · Inactiva" : ""}</span><span>${Core.formatEuros(row.debitCents)}</span><span>${Core.formatEuros(row.creditCents)}</span><strong>${balanceLabel(row.debitCents, row.creditCents)}</strong></div>`; }).join("") : `<p class="tpv-gestion-empty">No hay cuentas en este grupo todavía. Crea una cuenta auxiliar si la necesitáis.</p>`}</section>`; }).join("")}</div></section>`;
+  }
   function priceModal() {
     if (!state.editingId && !state.creatingProduct) return "";
     const item = state.creatingProduct ? null : product(state.editingId);
@@ -283,8 +339,8 @@
     return `<div class="tpv-modal-backdrop"><form class="tpv-modal" data-login-form><button class="tpv-modal__close" type="button" data-close-login aria-label="Cerrar">×</button><h2>¿Quién entra?</h2><p>${waiter ? "Selecciona tu nombre para entrar al TPV." : "El acceso de administración requiere PIN."}</p><div class="tpv-login-users">${options.map(([username, label, role]) => `<button class="tpv-login-user ${state.loginUsername === username ? "is-active" : ""}" type="button" data-login-user="${username}"><b>${label}</b><small>${role}</small></button>`).join("")}</div><label>Usuario<input name="username" value="${state.loginUsername}" readonly></label>${waiter ? "" : `<label>PIN<input name="pin" type="password" inputmode="numeric" autocomplete="current-password" pattern="[0-9]{4,10}" minlength="4" maxlength="10" required autofocus></label>`}<div class="tpv-modal__actions"><button class="tpv-action is-secondary" type="button" data-close-login>Cancelar</button><button class="tpv-action" type="submit">Entrar</button></div></form></div>`;
   }
   function render() {
-    const baseContent = state.tab === "ventas" ? renderSales() : state.tab === "historial" ? renderTableHistory() : state.tab === "caja" ? renderCashManagement() : state.tab === "articulos" ? renderArticles() : state.tab === "fidelizacion" ? renderLoyalty() : state.tab === "produccion" ? renderProduction() : state.tab === "escandallo" ? renderCosting() : state.tab === "contabilidad" ? renderAccounting() : state.tab === "personal" ? renderStaff() : renderTables();
-    const content = `${baseContent}${state.tab === "contabilidad" ? renderAccountingPlan() : ""}`;
+    const baseContent = state.tab === "ventas" ? renderSales() : state.tab === "historial" ? renderTableHistory() : state.tab === "caja" ? renderCashManagement() : state.tab === "articulos" ? renderArticles() : state.tab === "fidelizacion" ? renderLoyalty() : state.tab === "produccion" ? renderProduction() : state.tab === "escandallo" ? renderCosting() : state.tab === "contabilidad" ? renderAccountingWorkspace() : state.tab === "personal" ? renderStaff() : renderTables();
+    const content = `${baseContent}${state.tab === "contabilidad" ? renderAccountingLedger() : ""}`;
     root.innerHTML = `<div class="tpv-management-app">${nav()}<main class="tpv-management-main">${topbar()}${content}</main>${priceModal()}${tableModal()}${loyaltyModal()}${loginModal()}${state.toast ? `<div class="tpv-toast is-success">${escapeHtml(state.toast)}</div>` : ""}</div>`;
   }
   function closeProductModal() {
@@ -430,6 +486,31 @@
     render();
   });
   root.addEventListener("submit", (event) => {
+    if (event.target.matches("[data-accounting-account-form]")) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      Cloud.createAccountingAccount({ code: String(form.get("code") || "").trim(), name: String(form.get("name") || "").trim(), groupCode: form.get("groupCode"), accountType: form.get("accountType") })
+        .then(async () => { await refreshCloudAccounting(); flash("Cuenta añadida al plan contable."); render(); })
+        .catch((error) => { flash(error.message); render(); });
+      return;
+    }
+    if (event.target.matches("[data-accounting-entry-form]")) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      const toCents = (value) => {
+        const amount = String(value || "").trim();
+        return amount ? Math.round(Number(amount.replace(",", ".")) * 100) : 0;
+      };
+      const accountIds = form.getAll("accountId");
+      const debits = form.getAll("debit");
+      const credits = form.getAll("credit");
+      const lines = accountIds.map((accountId, index) => ({ accountId, debitCents: toCents(debits[index]), creditCents: toCents(credits[index]) })).filter((line) => line.accountId || line.debitCents || line.creditCents);
+      if (lines.length < 2 || lines.some((line) => !Number.isFinite(line.debitCents) || !Number.isFinite(line.creditCents))) { flash("Incluye al menos dos líneas con importes válidos."); render(); return; }
+      Cloud.createAccountingEntry({ entryDate: form.get("entryDate"), reference: form.get("reference"), description: form.get("description"), lines })
+        .then(async () => { await refreshCloudAccounting(); flash("Asiento contable registrado y cuadrado."); render(); })
+        .catch((error) => { flash(error.message); render(); });
+      return;
+    }
     if (event.target.matches("[data-invoice-upload-form]")) {
       event.preventDefault();
       const file = event.target.querySelector('input[name="invoiceCamera"]')?.files?.[0] || event.target.querySelector('input[name="invoiceFile"]')?.files?.[0];
@@ -447,7 +528,7 @@
         const [productName, productCode, quantity, unitPrice, vatPercent] = line.split("|").map((value) => value.trim());
         return { productName, productCode, quantity: Number(quantity), unitPriceCents: Math.round(Number(String(unitPrice || "").replace(",", ".")) * 100), vatPercent: Number(String(vatPercent || "10").replace(",", ".")) };
       });
-      Cloud.createSupplierInvoice({ supplierName: form.get("supplierName"), invoiceNumber: form.get("invoiceNumber"), invoiceDate: form.get("invoiceDate"), sourceText: form.get("sourceText"), lines })
+      Cloud.createSupplierInvoice({ supplierName: form.get("supplierName"), invoiceNumber: form.get("invoiceNumber"), invoiceDate: form.get("invoiceDate"), expenseAccountId: form.get("expenseAccountId"), sourceText: form.get("sourceText"), lines })
         .then(async () => { await refreshCloudAccounting(); flash("Factura registrada para contabilidad."); render(); })
         .catch((error) => { flash(error.message); render(); });
       return;
