@@ -75,7 +75,7 @@ function reservationRange(query = {}) {
 async function reservationPublicData(config, from, to) {
   const [slots, menus] = await Promise.all([
     supabaseRequest(config, `reservation_slots?enabled=eq.true&service_date=gte.${encodeURIComponent(from)}&service_date=lte.${encodeURIComponent(to)}&select=id,service_date,service_time,capacity_people,reserved_people&order=service_date.asc,service_time.asc`, { method: "GET" }),
-    supabaseRequest(config, "reservation_menu_options?active=eq.true&select=id,name,description,price_cents,sort_order&order=sort_order.asc,name.asc", { method: "GET" }),
+    supabaseRequest(config, "reservation_menu_options?active=eq.true&select=id,name,description,price_cents,image_url,sort_order&order=sort_order.asc,name.asc", { method: "GET" }),
   ]);
   return { slots: (Array.isArray(slots) ? slots : []).map((slot) => ({ id: slot.id, serviceDate: slot.service_date, serviceTime: String(slot.service_time || "").slice(0, 5), capacityPeople: Number(slot.capacity_people || 0), reservedPeople: Number(slot.reserved_people || 0), availablePeople: Math.max(0, Number(slot.capacity_people || 0) - Number(slot.reserved_people || 0)) })), menus: Array.isArray(menus) ? menus : [] };
 }
@@ -342,15 +342,26 @@ module.exports = async function handler(req, res) {
       const name = cleanText(body.name, 120);
       const price = body.priceCents === "" || body.priceCents === null || body.priceCents === undefined ? null : Math.round(Number(body.priceCents));
       if (name.length < 2 || (price !== null && (!Number.isInteger(price) || price < 0))) return res.status(400).json({ ok: false, error: "Revisa el nombre y el precio del menú." });
-      const rows = await supabaseRequest(config, "reservation_menu_options", { method: "POST", body: JSON.stringify({ name, description: cleanText(body.description, 500) || null, price_cents: price, sort_order: Math.max(0, Number.parseInt(body.sortOrder, 10) || 0), active: true }) });
+      const rows = await supabaseRequest(config, "reservation_menu_options", { method: "POST", body: JSON.stringify({ name, description: cleanText(body.description, 500) || null, price_cents: price, image_url: productImageUrl(config, body.imageUrl), sort_order: Math.max(0, Number.parseInt(body.sortOrder, 10) || 0), active: true }) });
       return res.status(201).json({ ok: true, menu: Array.isArray(rows) ? rows[0] : rows });
+    }
+    if (req.method === "POST" && body.action === "reservation_menu_image_upload") {
+      const file = productImageFile(body);
+      const path = `reservation-menus/${new Date().toISOString().slice(0, 10)}/${Date.now()}-${crypto.randomBytes(5).toString("hex")}-${file.fileName}`;
+      const encodedPath = path.split("/").map(encodeURIComponent).join("/");
+      await storageRequest(config, `object/product-images/${encodedPath}`, { method: "POST", headers: { "Content-Type": file.mimeType, "x-upsert": "false" }, body: file.buffer });
+      const url = `${config.supabaseUrl}/storage/v1/object/public/product-images/${encodedPath}`;
+      await audit(config, session.sub, "reservation_menu_options", "images", "photo_upload", { path });
+      return res.status(201).json({ ok: true, url });
     }
     if (req.method === "PATCH" && body.action === "reservation_menu_update") {
       const id = cleanText(body.id, 80);
       const name = cleanText(body.name, 120);
       const price = body.priceCents === "" || body.priceCents === null || body.priceCents === undefined ? null : Math.round(Number(body.priceCents));
       if (!id || name.length < 2 || (price !== null && (!Number.isInteger(price) || price < 0))) return res.status(400).json({ ok: false, error: "Revisa los datos del menú." });
-      const rows = await supabaseRequest(config, `reservation_menu_options?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ name, description: cleanText(body.description, 500) || null, price_cents: price, sort_order: Math.max(0, Number.parseInt(body.sortOrder, 10) || 0), active: body.active !== false }) });
+      const changes = { name, description: cleanText(body.description, 500) || null, price_cents: price, sort_order: Math.max(0, Number.parseInt(body.sortOrder, 10) || 0), active: body.active !== false };
+      if (Object.prototype.hasOwnProperty.call(body, "imageUrl")) changes.image_url = productImageUrl(config, body.imageUrl);
+      const rows = await supabaseRequest(config, `reservation_menu_options?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(changes) });
       return res.status(200).json({ ok: true, menu: Array.isArray(rows) ? rows[0] : rows });
     }
     if (req.method === "PATCH" && body.action === "reservation_status") {

@@ -227,6 +227,34 @@
     const today = new Date().toISOString().slice(0, 10);
     return `<section class="tpv-gestion-content"><div class="tpv-gestion-metrics"><article><span>Solicitudes pendientes</span><strong>${pending}</strong></article><article><span>Reservas confirmadas</span><strong>${confirmed}</strong></article><article><span>Turnos publicados</span><strong>${data.slots.filter((slot) => slot.enabled).length}</strong></article><article><span>Plazas libres</span><strong>${free}</strong></article></div><section class="tpv-gestion-card"><header><div><h2>Disponibilidad para reservas</h2><span>Publica cada fecha y hora que quieras ofrecer en la web.</span></div></header><form class="tpv-reservation-slot-form" data-reservation-slot-form><label>Fecha<input name="serviceDate" type="date" min="${today}" required></label><label>Hora<input name="serviceTime" type="time" required></label><label>Aforo<input name="capacityPeople" type="number" min="1" max="200" value="20" required></label><button class="tpv-action" type="submit">Publicar turno</button></form><div class="tpv-reservation-slots">${data.slots.length ? data.slots.map((slot) => `<form data-reservation-slot-update><input type="hidden" name="id" value="${slot.id}"><span><b>${reservationDateLabel(slot.service_date)}</b><small>${String(slot.service_time).slice(0, 5)}</small></span><label>Aforo<input name="capacityPeople" type="number" min="${slot.reserved_people}" max="200" value="${slot.capacity_people}" required></label><strong>${slot.reserved_people}/${slot.capacity_people}<small> reservadas</small></strong><label class="tpv-check-label"><input name="enabled" type="checkbox" ${slot.enabled ? "checked" : ""}> Visible</label><button class="tpv-edit-button" type="submit">Guardar</button></form>`).join("") : `<p class="tpv-gestion-empty">Todavía no hay turnos publicados. Crea el primero para activar el calendario web.</p>`}</div></section><section class="tpv-gestion-card"><header><div><h2>Menús para grupos</h2><span>El cliente los verá como una preferencia al reservar; no se cobra todavía.</span></div></header><form class="tpv-reservation-menu-form" data-reservation-menu-form><label>Nombre<input name="name" maxlength="120" placeholder="Menú cena de grupo" required></label><label>Precio por persona (€)<input name="price" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Descripción<input name="description" maxlength="500" placeholder="Incluye bebida, entrantes…"></label><label>Orden<input name="sortOrder" type="number" min="0" value="0"></label><button class="tpv-action" type="submit">Añadir menú</button></form><div class="tpv-reservation-menus">${data.menus.length ? data.menus.map((menu) => `<form data-reservation-menu-update><input type="hidden" name="id" value="${menu.id}"><label>Nombre<input name="name" value="${escapeHtml(menu.name)}" required></label><label>Precio €<input name="price" type="number" min="0" step="0.01" value="${menu.price_cents === null ? "" : (Number(menu.price_cents) / 100).toFixed(2)}"></label><label>Descripción<input name="description" value="${escapeHtml(menu.description || "")}"></label><label>Orden<input name="sortOrder" type="number" min="0" value="${menu.sort_order || 0}"></label><label class="tpv-check-label"><input name="active" type="checkbox" ${menu.active ? "checked" : ""}> Visible</label><button class="tpv-edit-button" type="submit">Guardar</button></form>`).join("") : `<p class="tpv-gestion-empty">No hay menús creados. Puedes seguir aceptando reservas a la carta.</p>`}</div></section><section class="tpv-gestion-card"><header><div><h2>Solicitudes recibidas</h2><span>Confirma o cancela cada solicitud. Cancelar devuelve automáticamente las plazas al calendario.</span></div></header><div class="tpv-reservation-list">${data.reservations.length ? data.reservations.map((reservation) => `<article><div class="tpv-reservation-list__date"><b>${reservationDateLabel(reservation.service_date)}</b><strong>${String(reservation.service_time).slice(0, 5)}</strong></div><div><b>${escapeHtml(reservation.customer_name)} · ${reservation.party_size} pers.</b><small>${escapeHtml(reservation.customer_phone)}${reservation.customer_email ? ` · ${escapeHtml(reservation.customer_email)}` : ""}</small><small>${escapeHtml(reservation.menu_name || "A la carta")}${reservation.notes ? ` · ${escapeHtml(reservation.notes)}` : ""}</small></div><span class="tpv-reservation-status is-${reservation.status}">${reservation.status === "pending" ? "Pendiente" : reservation.status === "confirmed" ? "Confirmada" : reservation.status === "cancelled" ? "Cancelada" : "No presentada"}</span><div class="tpv-reservation-list__actions">${reservation.status === "pending" ? `<button type="button" class="tpv-edit-button" data-reservation-status="confirmed" data-reservation-id="${reservation.id}">Confirmar</button>` : ""}${["pending", "confirmed"].includes(reservation.status) ? `<button type="button" class="tpv-delete-button" data-reservation-status="cancelled" data-reservation-id="${reservation.id}">Cancelar</button>` : ""}</div></article>`).join("") : `<p class="tpv-gestion-empty">Aún no hay reservas recibidas para el periodo mostrado.</p>`}</div></section><aside class="tpv-management-note"><h2>Flujo de reserva</h2><p>Publica los turnos que queráis ofrecer; el calendario web solo enseñará las plazas disponibles.</p><p>La persona deja su solicitud, que aparece como pendiente. Al confirmarla o cancelarla, el aforo queda actualizado para todos.</p></aside></section>`;
   }
+  function addReservationMenuImagePicker(form, menu) {
+    if (form.querySelector('[name="image"]')) return;
+    const orderField = form.querySelector('[name="sortOrder"]')?.closest("label");
+    if (!orderField) return;
+    const label = document.createElement("label");
+    label.textContent = "Foto";
+    const input = document.createElement("input");
+    input.name = "image";
+    input.type = "file";
+    input.accept = "image/jpeg,image/png,image/webp";
+    label.appendChild(input);
+    form.insertBefore(label, orderField);
+    if (menu?.image_url) {
+      const image = document.createElement("img");
+      image.className = "tpv-reservation-menu-photo";
+      image.src = menu.image_url;
+      image.alt = `Foto de ${menu.name}`;
+      form.insertBefore(image, orderField);
+    }
+  }
+  function decorateReservationMenuForms() {
+    const createForm = root.querySelector("[data-reservation-menu-form]");
+    if (createForm) addReservationMenuImagePicker(createForm);
+    root.querySelectorAll("[data-reservation-menu-update]").forEach((form) => {
+      const id = form.querySelector('[name="id"]')?.value;
+      addReservationMenuImagePicker(form, state.reservations.menus.find((menu) => menu.id === id));
+    });
+  }
   function remoteProducts() { return (state.data.remoteProducts || []).filter((item) => item.active !== false); }
   function ingredientById(id) { return state.production.ingredients.find((item) => item.id === id); }
   function recipeForProduct(productId) { return state.production.recipes.find((recipe) => recipe.product_id === productId); }
@@ -359,6 +387,7 @@
     const baseContent = state.tab === "ventas" ? renderSales() : state.tab === "historial" ? renderTableHistory() : state.tab === "caja" ? renderCashManagement() : state.tab === "articulos" ? renderArticles() : state.tab === "reservas" ? renderReservations() : state.tab === "fidelizacion" ? renderLoyalty() : state.tab === "produccion" ? renderProduction() : state.tab === "escandallo" ? renderCosting() : state.tab === "contabilidad" ? renderAccountingWorkspace() : state.tab === "personal" ? renderStaff() : renderTables();
     const content = `${baseContent}${state.tab === "contabilidad" ? renderAccountingLedger() : ""}`;
     root.innerHTML = `<div class="tpv-management-app">${nav()}<main class="tpv-management-main">${topbar()}${content}</main>${priceModal()}${tableModal()}${loyaltyModal()}${loginModal()}${state.toast ? `<div class="tpv-toast is-success">${escapeHtml(state.toast)}</div>` : ""}</div>`;
+    if (state.tab === "reservas") decorateReservationMenuForms();
   }
   function closeProductModal() {
     state.editingId = null;
@@ -529,7 +558,9 @@
       event.preventDefault();
       const form = new FormData(event.target);
       const price = String(form.get("price") || "").trim();
-      Cloud.createReservationMenu({ name: form.get("name"), description: form.get("description"), sortOrder: Number(form.get("sortOrder")), priceCents: price ? Math.round(Number(price.replace(",", ".")) * 100) : null })
+      const image = event.target.querySelector('[name="image"]')?.files?.[0];
+      (image?.size ? Cloud.uploadReservationMenuImage(image) : Promise.resolve(null))
+        .then((imageUrl) => Cloud.createReservationMenu({ name: form.get("name"), description: form.get("description"), sortOrder: Number(form.get("sortOrder")), priceCents: price ? Math.round(Number(price.replace(",", ".")) * 100) : null, imageUrl }))
         .then(async () => { await refreshCloudReservations(); flash("Menú añadido a las reservas online."); render(); })
         .catch((error) => { flash(error.message); render(); });
       return;
@@ -538,7 +569,9 @@
       event.preventDefault();
       const form = new FormData(event.target);
       const price = String(form.get("price") || "").trim();
-      Cloud.updateReservationMenu({ id: form.get("id"), name: form.get("name"), description: form.get("description"), sortOrder: Number(form.get("sortOrder")), active: form.get("active") === "on", priceCents: price ? Math.round(Number(price.replace(",", ".")) * 100) : null })
+      const image = event.target.querySelector('[name="image"]')?.files?.[0];
+      (image?.size ? Cloud.uploadReservationMenuImage(image) : Promise.resolve(undefined))
+        .then((imageUrl) => Cloud.updateReservationMenu({ id: form.get("id"), name: form.get("name"), description: form.get("description"), sortOrder: Number(form.get("sortOrder")), active: form.get("active") === "on", priceCents: price ? Math.round(Number(price.replace(",", ".")) * 100) : null, ...(imageUrl ? { imageUrl } : {}) }))
         .then(async () => { await refreshCloudReservations(); flash("Menú actualizado."); render(); })
         .catch((error) => { flash(error.message); render(); });
       return;

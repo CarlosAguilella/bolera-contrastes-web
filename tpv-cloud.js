@@ -256,6 +256,12 @@
     return result.menu;
   }
 
+  async function uploadReservationMenuImage(file) {
+    const payload = await productImagePayload(file);
+    const result = await request("tpv-products", { method: "POST", body: JSON.stringify({ action: "reservation_menu_image_upload", ...payload }) });
+    return result.url;
+  }
+
   async function updateReservationMenu(input) {
     const result = await request("tpv-products", { method: "PATCH", body: JSON.stringify({ action: "reservation_menu_update", ...input }) });
     return result.menu;
@@ -438,6 +444,7 @@
     updateReservationMenu,
     updateReservationSlot,
     updateReservationStatus,
+    uploadReservationMenuImage,
     configureRecipe,
     addRecipeLine,
     deleteRecipeLine,

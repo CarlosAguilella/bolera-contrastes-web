@@ -66,3 +66,5 @@ El listado inicial es una base práctica del Plan General Contable. Confirmad co
 Ejecuta `supabase/013_reservations.sql` en **SQL Editor**. Después, en `tpv-gestion` > **Reservas online** podrás publicar los días, horas y aforo, crear menús de grupo y confirmar o cancelar las solicitudes recibidas.
 
 La web pública mostrará únicamente los turnos publicados con plazas libres. Cada reserva descuenta el número de comensales de forma atómica para evitar sobreventas; al cancelarla desde Gestión, las plazas se liberan otra vez. La solicitud no realiza ningún cobro y queda pendiente de confirmación del local.
+
+Para añadir una foto a cada menú de reserva, ejecuta también `supabase/014_reservation_menu_images.sql`. En **Reservas online** podrás seleccionar una imagen real al crear o editar el menú; la verá la persona antes de solicitar su mesa.
