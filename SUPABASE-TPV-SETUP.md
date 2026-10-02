@@ -60,3 +60,9 @@ Ejecuta `supabase/012_accounting_workbench.sql` en **SQL Editor** para activar l
 - Consultar el libro mayor con el saldo acumulado por cuenta.
 
 El listado inicial es una base práctica del Plan General Contable. Confirmad con vuestra asesoría las cuentas auxiliares, los criterios de IVA y el cierre oficial antes de usarlo para presentar impuestos o cuentas anuales.
+
+## Actualización: reservas online
+
+Ejecuta `supabase/013_reservations.sql` en **SQL Editor**. Después, en `tpv-gestion` > **Reservas online** podrás publicar los días, horas y aforo, crear menús de grupo y confirmar o cancelar las solicitudes recibidas.
+
+La web pública mostrará únicamente los turnos publicados con plazas libres. Cada reserva descuenta el número de comensales de forma atómica para evitar sobreventas; al cancelarla desde Gestión, las plazas se liberan otra vez. La solicitud no realiza ningún cobro y queda pendiente de confirmación del local.

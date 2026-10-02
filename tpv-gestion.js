@@ -4,7 +4,7 @@
   const root = document.getElementById("tpv-gestion-root");
   if (!Core || !root) return;
 
-  const state = { tab: "ventas", search: "", staff: [], cashSession: null, cashHistory: [], shiftHistory: [], tableHistory: [], accountingInvoices: [], accountingAccounts: [], accountingEntries: [], accountingReady: null, selectedLoyaltyCustomerId: null, production: { ingredients: [], recipes: [], recipeLines: [], settings: null }, recipeProductId: "", editingId: null, creatingProduct: window.location.hash === "#nuevo-articulo", editingTableId: null, deletingTableId: null, loginOpen: false, loginUsername: "carlos", data: Core.loadData(), toast: null };
+  const state = { tab: "ventas", search: "", staff: [], cashSession: null, cashHistory: [], shiftHistory: [], tableHistory: [], accountingInvoices: [], accountingAccounts: [], accountingEntries: [], accountingReady: null, reservations: { slots: [], menus: [], reservations: [] }, selectedLoyaltyCustomerId: null, production: { ingredients: [], recipes: [], recipeLines: [], settings: null }, recipeProductId: "", editingId: null, creatingProduct: window.location.hash === "#nuevo-articulo", editingTableId: null, deletingTableId: null, loginOpen: false, loginUsername: "carlos", data: Core.loadData(), toast: null };
   let toastTimer = null;
   let draggedTable = null;
 
@@ -85,6 +85,13 @@
       state.accountingReady = false;
     }
   }
+  async function refreshCloudReservations() {
+    if (!isCloudConnected() || !["admin", "manager"].includes(session().user.role)) return;
+    const from = new Date(); from.setDate(from.getDate() - 1);
+    const to = new Date(); to.setDate(to.getDate() + 90);
+    const formatDate = (value) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+    try { state.reservations = await Cloud.loadReservations(formatDate(from), formatDate(to)); } catch (error) { state.reservations = { slots: [], menus: [], reservations: [] }; }
+  }
   function flash(message) {
     state.toast = message;
     clearTimeout(toastTimer);
@@ -111,10 +118,10 @@
     state.data.sales.forEach((sale) => { if (sale.tableId === previousId) sale.tableId = nextId; });
   }
   function nav() {
-    return `<aside class="tpv-management-sidebar"><a class="tpv-brand" href="tpv.html"><span class="tpv-brand__mark">C</span><span class="tpv-brand__type"><strong>Contrastes</strong><small>Gestión TPV</small></span></a><nav><a href="tpv.html">← Volver al TPV</a><button type="button" class="${state.tab === "ventas" ? "is-active" : ""}" data-tab="ventas">Ventas</button><button type="button" class="${state.tab === "historial" ? "is-active" : ""}" data-tab="historial">Historial de mesas</button><button type="button" class="${state.tab === "caja" ? "is-active" : ""}" data-tab="caja">Caja y cierres</button><button type="button" class="${state.tab === "articulos" ? "is-active" : ""}" data-tab="articulos">Artículos y precios</button><button type="button" class="${state.tab === "fidelizacion" ? "is-active" : ""}" data-tab="fidelizacion">Fidelización · Duros</button><button type="button" class="${state.tab === "produccion" ? "is-active" : ""}" data-tab="produccion">Producción</button><button type="button" class="${state.tab === "escandallo" ? "is-active" : ""}" data-tab="escandallo">Escandallo</button><button type="button" class="${state.tab === "sala" ? "is-active" : ""}" data-tab="sala">Sala y mesas</button><button type="button" class="${state.tab === "personal" ? "is-active" : ""}" data-tab="personal">Personal y PIN</button><button type="button" class="${state.tab === "contabilidad" ? "is-active" : ""}" data-tab="contabilidad">Contabilidad</button></nav><p>Panel interno<br>Datos guardados en la base central.</p></aside>`;
+    return `<aside class="tpv-management-sidebar"><a class="tpv-brand" href="tpv.html"><span class="tpv-brand__mark">C</span><span class="tpv-brand__type"><strong>Contrastes</strong><small>Gestión TPV</small></span></a><nav><a href="tpv.html">← Volver al TPV</a><button type="button" class="${state.tab === "ventas" ? "is-active" : ""}" data-tab="ventas">Ventas</button><button type="button" class="${state.tab === "historial" ? "is-active" : ""}" data-tab="historial">Historial de mesas</button><button type="button" class="${state.tab === "caja" ? "is-active" : ""}" data-tab="caja">Caja y cierres</button><button type="button" class="${state.tab === "articulos" ? "is-active" : ""}" data-tab="articulos">Artículos y precios</button><button type="button" class="${state.tab === "reservas" ? "is-active" : ""}" data-tab="reservas">Reservas online</button><button type="button" class="${state.tab === "fidelizacion" ? "is-active" : ""}" data-tab="fidelizacion">Fidelización · Duros</button><button type="button" class="${state.tab === "produccion" ? "is-active" : ""}" data-tab="produccion">Producción</button><button type="button" class="${state.tab === "escandallo" ? "is-active" : ""}" data-tab="escandallo">Escandallo</button><button type="button" class="${state.tab === "sala" ? "is-active" : ""}" data-tab="sala">Sala y mesas</button><button type="button" class="${state.tab === "personal" ? "is-active" : ""}" data-tab="personal">Personal y PIN</button><button type="button" class="${state.tab === "contabilidad" ? "is-active" : ""}" data-tab="contabilidad">Contabilidad</button></nav><p>Panel interno<br>Datos guardados en la base central.</p></aside>`;
   }
   function topbar() {
-    const title = { ventas: "Ventas", historial: "Historial de mesas", caja: "Caja y cierres", articulos: "Artículos y precios", fidelizacion: "Fidelización", produccion: "Producción", escandallo: "Escandallo", sala: "Sala y mesas", personal: "Personal y PIN", contabilidad: "Contabilidad" }[state.tab];
+    const title = { ventas: "Ventas", historial: "Historial de mesas", caja: "Caja y cierres", articulos: "Artículos y precios", reservas: "Reservas online", fidelizacion: "Fidelización", produccion: "Producción", escandallo: "Escandallo", sala: "Sala y mesas", personal: "Personal y PIN", contabilidad: "Contabilidad" }[state.tab];
     const user = session()?.user;
     return `<header class="tpv-gestion-topbar"><div><span>Administración</span><h1>${title}</h1></div><div class="tpv-gestion-topbar__actions"><span class="tpv-live">${user ? `Base central · ${escapeHtml(user.displayName)}` : "Datos locales"}</span>${user ? `<button class="tpv-action is-secondary" type="button" data-logout>Salir</button>` : `<button class="tpv-action is-secondary" type="button" data-open-login>Acceder</button>`}<a class="tpv-action is-secondary" href="tpv.html">TPV camarero</a></div></header>`;
   }
@@ -209,6 +216,16 @@
     if (!customer) return "";
     const sales = state.data.sales.filter((sale) => sale.customerId === customer.id);
     return `<div class="tpv-modal-backdrop"><section class="tpv-modal"><button class="tpv-modal__close" type="button" data-close-loyalty aria-label="Cerrar">×</button><h2>${escapeHtml(customer.name)}</h2><p>${escapeHtml(customer.phone || customer.email || "Sin contacto")}</p><div class="tpv-gestion-metrics"><article><span>Duros</span><strong>${Number(customer.duros || 0)}</strong></article><article><span>Consumos</span><strong>${sales.length}</strong></article></div><h3>Historial de consumo</h3>${sales.length ? `<ul class="tpv-cash-movements">${sales.map((sale) => `<li><span>${new Date(sale.paidAt).toLocaleString("es-ES")}</span><b>${Core.formatEuros(sale.totalCents)}</b></li>`).join("")}</ul>` : `<p class="tpv-gestion-empty">Aún no hay consumos vinculados a este cliente.</p>`}<h3>Devoluciones</h3><p class="tpv-gestion-empty">No hay devoluciones registradas.</p></section></div>`;
+  }
+  function reservationDateLabel(value) { return new Date(`${value}T12:00:00`).toLocaleDateString("es-ES", { weekday: "short", day: "2-digit", month: "short" }); }
+  function renderReservations() {
+    if (!isCloudConnected() || !["admin", "manager"].includes(session()?.user?.role)) return `<section class="tpv-gestion-content"><section class="tpv-gestion-card"><p class="tpv-gestion-empty">Inicia sesión como administrador para configurar y confirmar reservas online.</p></section></section>`;
+    const data = state.reservations;
+    const pending = data.reservations.filter((item) => item.status === "pending").length;
+    const confirmed = data.reservations.filter((item) => item.status === "confirmed").length;
+    const free = data.slots.filter((slot) => slot.enabled).reduce((sum, slot) => sum + Math.max(0, Number(slot.capacity_people) - Number(slot.reserved_people)), 0);
+    const today = new Date().toISOString().slice(0, 10);
+    return `<section class="tpv-gestion-content"><div class="tpv-gestion-metrics"><article><span>Solicitudes pendientes</span><strong>${pending}</strong></article><article><span>Reservas confirmadas</span><strong>${confirmed}</strong></article><article><span>Turnos publicados</span><strong>${data.slots.filter((slot) => slot.enabled).length}</strong></article><article><span>Plazas libres</span><strong>${free}</strong></article></div><section class="tpv-gestion-card"><header><div><h2>Disponibilidad para reservas</h2><span>Publica cada fecha y hora que quieras ofrecer en la web.</span></div></header><form class="tpv-reservation-slot-form" data-reservation-slot-form><label>Fecha<input name="serviceDate" type="date" min="${today}" required></label><label>Hora<input name="serviceTime" type="time" required></label><label>Aforo<input name="capacityPeople" type="number" min="1" max="200" value="20" required></label><button class="tpv-action" type="submit">Publicar turno</button></form><div class="tpv-reservation-slots">${data.slots.length ? data.slots.map((slot) => `<form data-reservation-slot-update><input type="hidden" name="id" value="${slot.id}"><span><b>${reservationDateLabel(slot.service_date)}</b><small>${String(slot.service_time).slice(0, 5)}</small></span><label>Aforo<input name="capacityPeople" type="number" min="${slot.reserved_people}" max="200" value="${slot.capacity_people}" required></label><strong>${slot.reserved_people}/${slot.capacity_people}<small> reservadas</small></strong><label class="tpv-check-label"><input name="enabled" type="checkbox" ${slot.enabled ? "checked" : ""}> Visible</label><button class="tpv-edit-button" type="submit">Guardar</button></form>`).join("") : `<p class="tpv-gestion-empty">Todavía no hay turnos publicados. Crea el primero para activar el calendario web.</p>`}</div></section><section class="tpv-gestion-card"><header><div><h2>Menús para grupos</h2><span>El cliente los verá como una preferencia al reservar; no se cobra todavía.</span></div></header><form class="tpv-reservation-menu-form" data-reservation-menu-form><label>Nombre<input name="name" maxlength="120" placeholder="Menú cena de grupo" required></label><label>Precio por persona (€)<input name="price" type="number" min="0" step="0.01" placeholder="Opcional"></label><label>Descripción<input name="description" maxlength="500" placeholder="Incluye bebida, entrantes…"></label><label>Orden<input name="sortOrder" type="number" min="0" value="0"></label><button class="tpv-action" type="submit">Añadir menú</button></form><div class="tpv-reservation-menus">${data.menus.length ? data.menus.map((menu) => `<form data-reservation-menu-update><input type="hidden" name="id" value="${menu.id}"><label>Nombre<input name="name" value="${escapeHtml(menu.name)}" required></label><label>Precio €<input name="price" type="number" min="0" step="0.01" value="${menu.price_cents === null ? "" : (Number(menu.price_cents) / 100).toFixed(2)}"></label><label>Descripción<input name="description" value="${escapeHtml(menu.description || "")}"></label><label>Orden<input name="sortOrder" type="number" min="0" value="${menu.sort_order || 0}"></label><label class="tpv-check-label"><input name="active" type="checkbox" ${menu.active ? "checked" : ""}> Visible</label><button class="tpv-edit-button" type="submit">Guardar</button></form>`).join("") : `<p class="tpv-gestion-empty">No hay menús creados. Puedes seguir aceptando reservas a la carta.</p>`}</div></section><section class="tpv-gestion-card"><header><div><h2>Solicitudes recibidas</h2><span>Confirma o cancela cada solicitud. Cancelar devuelve automáticamente las plazas al calendario.</span></div></header><div class="tpv-reservation-list">${data.reservations.length ? data.reservations.map((reservation) => `<article><div class="tpv-reservation-list__date"><b>${reservationDateLabel(reservation.service_date)}</b><strong>${String(reservation.service_time).slice(0, 5)}</strong></div><div><b>${escapeHtml(reservation.customer_name)} · ${reservation.party_size} pers.</b><small>${escapeHtml(reservation.customer_phone)}${reservation.customer_email ? ` · ${escapeHtml(reservation.customer_email)}` : ""}</small><small>${escapeHtml(reservation.menu_name || "A la carta")}${reservation.notes ? ` · ${escapeHtml(reservation.notes)}` : ""}</small></div><span class="tpv-reservation-status is-${reservation.status}">${reservation.status === "pending" ? "Pendiente" : reservation.status === "confirmed" ? "Confirmada" : reservation.status === "cancelled" ? "Cancelada" : "No presentada"}</span><div class="tpv-reservation-list__actions">${reservation.status === "pending" ? `<button type="button" class="tpv-edit-button" data-reservation-status="confirmed" data-reservation-id="${reservation.id}">Confirmar</button>` : ""}${["pending", "confirmed"].includes(reservation.status) ? `<button type="button" class="tpv-delete-button" data-reservation-status="cancelled" data-reservation-id="${reservation.id}">Cancelar</button>` : ""}</div></article>`).join("") : `<p class="tpv-gestion-empty">Aún no hay reservas recibidas para el periodo mostrado.</p>`}</div></section><aside class="tpv-management-note"><h2>Flujo de reserva</h2><p>Publica los turnos que queráis ofrecer; el calendario web solo enseñará las plazas disponibles.</p><p>La persona deja su solicitud, que aparece como pendiente. Al confirmarla o cancelarla, el aforo queda actualizado para todos.</p></aside></section>`;
   }
   function remoteProducts() { return (state.data.remoteProducts || []).filter((item) => item.active !== false); }
   function ingredientById(id) { return state.production.ingredients.find((item) => item.id === id); }
@@ -339,7 +356,7 @@
     return `<div class="tpv-modal-backdrop"><form class="tpv-modal" data-login-form><button class="tpv-modal__close" type="button" data-close-login aria-label="Cerrar">×</button><h2>¿Quién entra?</h2><p>${waiter ? "Selecciona tu nombre para entrar al TPV." : "El acceso de administración requiere PIN."}</p><div class="tpv-login-users">${options.map(([username, label, role]) => `<button class="tpv-login-user ${state.loginUsername === username ? "is-active" : ""}" type="button" data-login-user="${username}"><b>${label}</b><small>${role}</small></button>`).join("")}</div><label>Usuario<input name="username" value="${state.loginUsername}" readonly></label>${waiter ? "" : `<label>PIN<input name="pin" type="password" inputmode="numeric" autocomplete="current-password" pattern="[0-9]{4,10}" minlength="4" maxlength="10" required autofocus></label>`}<div class="tpv-modal__actions"><button class="tpv-action is-secondary" type="button" data-close-login>Cancelar</button><button class="tpv-action" type="submit">Entrar</button></div></form></div>`;
   }
   function render() {
-    const baseContent = state.tab === "ventas" ? renderSales() : state.tab === "historial" ? renderTableHistory() : state.tab === "caja" ? renderCashManagement() : state.tab === "articulos" ? renderArticles() : state.tab === "fidelizacion" ? renderLoyalty() : state.tab === "produccion" ? renderProduction() : state.tab === "escandallo" ? renderCosting() : state.tab === "contabilidad" ? renderAccountingWorkspace() : state.tab === "personal" ? renderStaff() : renderTables();
+    const baseContent = state.tab === "ventas" ? renderSales() : state.tab === "historial" ? renderTableHistory() : state.tab === "caja" ? renderCashManagement() : state.tab === "articulos" ? renderArticles() : state.tab === "reservas" ? renderReservations() : state.tab === "fidelizacion" ? renderLoyalty() : state.tab === "produccion" ? renderProduction() : state.tab === "escandallo" ? renderCosting() : state.tab === "contabilidad" ? renderAccountingWorkspace() : state.tab === "personal" ? renderStaff() : renderTables();
     const content = `${baseContent}${state.tab === "contabilidad" ? renderAccountingLedger() : ""}`;
     root.innerHTML = `<div class="tpv-management-app">${nav()}<main class="tpv-management-main">${topbar()}${content}</main>${priceModal()}${tableModal()}${loyaltyModal()}${loginModal()}${state.toast ? `<div class="tpv-toast is-success">${escapeHtml(state.toast)}</div>` : ""}</div>`;
   }
@@ -353,12 +370,18 @@
     if (action) { event.preventDefault(); state.creatingProduct = true; render(); return; }
     const button = event.target.closest("button");
     if (!button) return;
-    if (button.dataset.tab) { state.tab = button.dataset.tab; if (state.tab === "personal") { Promise.all([refreshCloudStaff(), refreshCloudShiftHistory()]).then(render).catch((error) => { flash(error.message); render(); }); } if (["produccion", "escandallo"].includes(state.tab)) { refreshCloudProduction().then(render).catch((error) => { flash(error.message); render(); }); } if (state.tab === "contabilidad") { refreshCloudAccounting().then(render).catch((error) => { flash(error.message); render(); }); } if (state.tab === "historial") { refreshCloudTableHistory().then(render).catch((error) => { flash(error.message); render(); }); } if (state.tab === "caja") { refreshCloudCash().then(render).catch((error) => { flash(error.message); render(); }); } render(); return; }
+    if (button.dataset.tab) { state.tab = button.dataset.tab; if (state.tab === "personal") { Promise.all([refreshCloudStaff(), refreshCloudShiftHistory()]).then(render).catch((error) => { flash(error.message); render(); }); } if (["produccion", "escandallo"].includes(state.tab)) { refreshCloudProduction().then(render).catch((error) => { flash(error.message); render(); }); } if (state.tab === "contabilidad") { refreshCloudAccounting().then(render).catch((error) => { flash(error.message); render(); }); } if (state.tab === "reservas") { refreshCloudReservations().then(render).catch((error) => { flash(error.message); render(); }); } if (state.tab === "historial") { refreshCloudTableHistory().then(render).catch((error) => { flash(error.message); render(); }); } if (state.tab === "caja") { refreshCloudCash().then(render).catch((error) => { flash(error.message); render(); }); } render(); return; }
     if (button.dataset.loginUser) { state.loginUsername = button.dataset.loginUser; render(); return; }
     if (button.dataset.openLogin !== undefined) { state.loginOpen = true; render(); return; }
     if (button.dataset.closeLogin !== undefined) { state.loginOpen = false; render(); return; }
     if (button.dataset.loyaltyCustomer) { state.selectedLoyaltyCustomerId = button.dataset.loyaltyCustomer; render(); return; }
     if (button.dataset.closeLoyalty !== undefined) { state.selectedLoyaltyCustomerId = null; render(); return; }
+    if (button.dataset.reservationStatus) {
+      Cloud.updateReservationStatus(button.dataset.reservationId, button.dataset.reservationStatus)
+        .then(async () => { await refreshCloudReservations(); flash(button.dataset.reservationStatus === "confirmed" ? "Reserva confirmada." : "Reserva cancelada y plazas liberadas."); render(); })
+        .catch((error) => { flash(error.message); render(); });
+      return;
+    }
     if (button.dataset.openInvoiceFile) {
       Cloud.getSupplierInvoiceFileUrl(button.dataset.openInvoiceFile)
         .then((url) => window.open(url, "_blank", "noopener"))
@@ -486,6 +509,40 @@
     render();
   });
   root.addEventListener("submit", (event) => {
+    if (event.target.matches("[data-reservation-slot-form]")) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      Cloud.createReservationSlot({ serviceDate: form.get("serviceDate"), serviceTime: form.get("serviceTime"), capacityPeople: Number(form.get("capacityPeople")) })
+        .then(async () => { await refreshCloudReservations(); flash("Turno publicado en el calendario web."); render(); })
+        .catch((error) => { flash(error.message); render(); });
+      return;
+    }
+    if (event.target.matches("[data-reservation-slot-update]")) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      Cloud.updateReservationSlot({ id: form.get("id"), capacityPeople: Number(form.get("capacityPeople")), enabled: form.get("enabled") === "on" })
+        .then(async () => { await refreshCloudReservations(); flash("Disponibilidad actualizada."); render(); })
+        .catch((error) => { flash(error.message); render(); });
+      return;
+    }
+    if (event.target.matches("[data-reservation-menu-form]")) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      const price = String(form.get("price") || "").trim();
+      Cloud.createReservationMenu({ name: form.get("name"), description: form.get("description"), sortOrder: Number(form.get("sortOrder")), priceCents: price ? Math.round(Number(price.replace(",", ".")) * 100) : null })
+        .then(async () => { await refreshCloudReservations(); flash("Menú añadido a las reservas online."); render(); })
+        .catch((error) => { flash(error.message); render(); });
+      return;
+    }
+    if (event.target.matches("[data-reservation-menu-update]")) {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      const price = String(form.get("price") || "").trim();
+      Cloud.updateReservationMenu({ id: form.get("id"), name: form.get("name"), description: form.get("description"), sortOrder: Number(form.get("sortOrder")), active: form.get("active") === "on", priceCents: price ? Math.round(Number(price.replace(",", ".")) * 100) : null })
+        .then(async () => { await refreshCloudReservations(); flash("Menú actualizado."); render(); })
+        .catch((error) => { flash(error.message); render(); });
+      return;
+    }
     if (event.target.matches("[data-accounting-account-form]")) {
       event.preventDefault();
       const form = new FormData(event.target);
@@ -588,6 +645,7 @@
           await refreshCloudTableHistory();
           await refreshCloudProduction();
           await refreshCloudAccounting();
+          await refreshCloudReservations();
           state.loginOpen = false;
           flash("Sesión iniciada. Las mesas ya usan la base central.");
           render();
@@ -698,7 +756,7 @@
     render();
   });
   if (isCloudConnected()) {
-    Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales(), refreshCloudStaff(), refreshCloudCash(), refreshCloudShiftHistory(), refreshCloudTableHistory(), refreshCloudProduction(), refreshCloudAccounting()]).then(render).catch(() => {});
-    window.setInterval(() => Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales(), refreshCloudCash(), refreshCloudShiftHistory(), refreshCloudTableHistory(), refreshCloudProduction(), refreshCloudAccounting()]).then(render).catch(() => {}), 15000);
+    Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales(), refreshCloudStaff(), refreshCloudCash(), refreshCloudShiftHistory(), refreshCloudTableHistory(), refreshCloudProduction(), refreshCloudAccounting(), refreshCloudReservations()]).then(render).catch(() => {});
+    window.setInterval(() => Promise.all([refreshCloudTables(), refreshCloudProducts(), refreshCloudSales(), refreshCloudCash(), refreshCloudShiftHistory(), refreshCloudTableHistory(), refreshCloudProduction(), refreshCloudAccounting(), refreshCloudReservations()]).then(render).catch(() => {}), 15000);
   }
 })();
