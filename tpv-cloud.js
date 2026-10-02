@@ -237,32 +237,32 @@
   }
 
   async function loadReservations(from, to) {
-    const result = await request(`reservations?scope=admin&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+    const result = await request(`tpv-products?scope=reservations&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
     return { slots: result.slots || [], menus: result.menus || [], reservations: result.reservations || [] };
   }
 
   async function createReservationSlot(input) {
-    const result = await request("reservations", { method: "POST", body: JSON.stringify({ action: "slot_create", ...input }) });
+    const result = await request("tpv-products", { method: "POST", body: JSON.stringify({ action: "reservation_slot_create", ...input }) });
     return result.slot;
   }
 
   async function updateReservationSlot(input) {
-    const result = await request("reservations", { method: "PATCH", body: JSON.stringify({ action: "slot_update", ...input }) });
+    const result = await request("tpv-products", { method: "PATCH", body: JSON.stringify({ action: "reservation_slot_update", ...input }) });
     return result.slot;
   }
 
   async function createReservationMenu(input) {
-    const result = await request("reservations", { method: "POST", body: JSON.stringify({ action: "menu_create", ...input }) });
+    const result = await request("tpv-products", { method: "POST", body: JSON.stringify({ action: "reservation_menu_create", ...input }) });
     return result.menu;
   }
 
   async function updateReservationMenu(input) {
-    const result = await request("reservations", { method: "PATCH", body: JSON.stringify({ action: "menu_update", ...input }) });
+    const result = await request("tpv-products", { method: "PATCH", body: JSON.stringify({ action: "reservation_menu_update", ...input }) });
     return result.menu;
   }
 
   async function updateReservationStatus(id, status) {
-    const result = await request("reservations", { method: "PATCH", body: JSON.stringify({ action: "reservation_status", id, status }) });
+    const result = await request("tpv-products", { method: "PATCH", body: JSON.stringify({ action: "reservation_status", id, status }) });
     return result.reservation;
   }
 

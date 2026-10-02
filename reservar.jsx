@@ -33,7 +33,7 @@ function Reservar({ onNav }) {
     const from = localDateString(new Date());
     const until = new Date();
     until.setDate(until.getDate() + 90);
-    fetch(`/api/reservations?from=${from}&to=${localDateString(until)}`)
+    fetch(`/api/tpv-products?scope=reservations_public&from=${from}&to=${localDateString(until)}`)
       .then((response) => response.json().then((body) => ({ response, body })))
       .then(({ response, body }) => {
         if (!response.ok || !body.ok) throw new Error(body.error || "No se ha podido cargar la disponibilidad.");
@@ -65,7 +65,7 @@ function Reservar({ onNav }) {
     if (!isValid || submitting) return;
     setSubmitting(true); setSubmitError("");
     try {
-      const response = await fetch("/api/reservations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "create", slotId: selectedSlot.id, name, phone, email, partySize: people, menuOptionId: menuId || null, notes }) });
+      const response = await fetch("/api/tpv-products", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reservation_create", slotId: selectedSlot.id, name, phone, email, partySize: people, menuOptionId: menuId || null, notes }) });
       const body = await response.json().catch(() => ({}));
       if (!response.ok || !body.ok) throw new Error(body.error || "No se ha podido enviar la reserva.");
       setConfirmation(body.reservation);
